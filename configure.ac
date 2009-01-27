@@ -2,7 +2,7 @@ AC_PREREQ(2.52)
 AC_INIT(GStreamer-Browser-Plugin, 0.0.1)
 AM_INIT_AUTOMAKE
 dnl can autoconf find the source ?
-AC_CONFIG_SRCDIR([gbp-plugin.h])
+AC_CONFIG_SRCDIR([src/gbp-plugin.h])
 AC_LIBTOOL_WIN32_DLL
 AM_PROG_LIBTOOL
 AC_PROG_CC
@@ -13,5 +13,6 @@ GST_REQ=0.10.18
 PKG_CHECK_MODULES(GST, gstreamer-0.10)
 AC_CONFIG_FILES(
 Makefile
+src/Makefile
 )
 AC_OUTPUT
