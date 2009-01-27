@@ -21,6 +21,7 @@
  */
 
 #include "gbp-player.h"
+#include "gbp-marshal.h"
 
 GST_DEBUG_CATEGORY_STATIC (gbp_player_debug);
 #define GST_CAT_DEFAULT gbp_player_debug

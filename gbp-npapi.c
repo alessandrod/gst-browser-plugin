@@ -160,7 +160,7 @@ char *
 NP_GetMIMEDescription()
 {
   gbp_plugin_add_mime_type ("application/x-gbp");
-  return gbp_plugin_get_mime_description ();
+  return gbp_plugin_get_mime_types_description ();
 }
 
 NPError

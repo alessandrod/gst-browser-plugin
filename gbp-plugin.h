@@ -31,7 +31,7 @@ gboolean gbp_plugin_add_mime_type (const char *mime_type);
 gboolean gbp_plugin_remove_mime_type (const gchar *mime_type);
 void gbp_plugin_remove_all_mime_types ();
 GList *gbp_plugin_get_mime_types ();
-char *gbp_plugin_get_mime_description ();
+char *gbp_plugin_get_mime_types_description ();
 
 G_END_DECLS
 

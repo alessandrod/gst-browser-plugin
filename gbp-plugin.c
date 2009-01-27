@@ -54,7 +54,7 @@ gbp_plugin_add_mime_type (const char *mime_type)
     last = walk;
   }
 
-  tmp = g_list_append (last, mime_type);
+  tmp = g_list_append (last, (char *) mime_type);
   if (last == NULL)
     mime_types = tmp;
 
@@ -90,11 +90,11 @@ gbp_plugin_remove_all_mime_types ()
 }
 
 char *
-gbp_plugin_get_mime_type_description ()
+gbp_plugin_get_mime_types_description ()
 {
   GList *walk;
   int i;
-  const gchar **mimes;
+  gchar **mimes;
 
   if (mime_types_description != NULL)
     return mime_types_description;
@@ -102,7 +102,7 @@ gbp_plugin_get_mime_type_description ()
   if (mime_types == NULL)
     return NULL;
 
-  mimes = g_new (char *, g_list_length (mime_types));
+  mimes = (gchar **) g_new (char *, g_list_length (mime_types));
 
   for (walk = mime_types, i=0 ; walk != NULL; walk = walk->next, ++i)
     mimes[i] = walk->data;
@@ -111,5 +111,5 @@ gbp_plugin_get_mime_type_description ()
 
   g_free (mimes);
 
-  return mime_types_descriptiom;
+  return mime_types_description;
 }
