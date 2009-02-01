@@ -20,6 +20,8 @@
  * Boston, MA 02111-1307, USA.
  */
 
+#include <string.h>
+#include <gst/interfaces/xoverlay.h>
 #include "gbp-player.h"
 #include "gbp-marshal.h"
 
@@ -68,6 +70,9 @@ static void on_bus_eos_cb (GstBus *bus, GstMessage *message,
     GbpPlayer *player);
 static void on_bus_error_cb (GstBus *bus, GstMessage *message,
     GbpPlayer *player);
+static void on_bus_element_cb (GstBus *bus, GstMessage *message,
+    GbpPlayer *player);
+
 static void
 gbp_player_dispose (GObject *object)
 {
@@ -227,6 +232,7 @@ build_pipeline (GbpPlayer *player)
       "signal::sync-message::state-changed", G_CALLBACK (on_bus_state_changed_cb), player,
       "signal::sync-message::eos", G_CALLBACK (on_bus_eos_cb), player,
       "signal::sync-message::error", G_CALLBACK (on_bus_error_cb), player,
+      "signal::sync-message::element", G_CALLBACK (on_bus_element_cb), player,
       NULL);
 
   player->priv->have_pipeline = TRUE;
@@ -305,4 +311,23 @@ on_bus_error_cb (GstBus *bus, GstMessage *message,
   gst_message_parse_error (message, &error, &debug);
 
   g_signal_emit (player, player_signals[SIGNAL_ERROR], 0, error, debug);
+}
+
+static void
+on_bus_element_cb (GstBus *bus, GstMessage *message,
+    GbpPlayer *player)
+{
+  const GstStructure *structure;
+  const gchar *structure_name;
+  GstElement *sink;
+
+  structure = gst_message_get_structure (message);
+  if (structure == NULL)
+    return;
+
+  structure_name = gst_structure_get_name (structure);
+  if (!strcmp (structure_name, "prepare-xwindow-id")) {
+    sink = GST_ELEMENT (message->src);
+    gst_x_overlay_set_xwindow_id (GST_X_OVERLAY (sink), player->priv->xid);
+  }
 }

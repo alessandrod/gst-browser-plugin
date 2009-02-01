@@ -11,7 +11,7 @@ nodist_libgst_browser_plugin_la_SOURCES = \
   gbp-marshal.c
 
 libgst_browser_plugin_la_CFLAGS = $(GST_CFLAGS) -Wall -Werror
-libgst_browser_plugin_la_LIBADD = $(GST_LIBS)
+libgst_browser_plugin_la_LIBADD = $(GST_LIBS) -lgstinterfaces-0.10
 libgst_browser_plugin_la_LDFLAGS = -avoid-version -no-undefined
 
 noinst_HEADERS = \

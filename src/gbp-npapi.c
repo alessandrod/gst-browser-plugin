@@ -70,8 +70,6 @@ NPP_New (NPMIMEType plugin_type, NPP instance, uint16 mode,
 
   instance->pdata = pdata;
 
-  gbp_player_start (player);
-
   return NPERR_NO_ERROR;
 }
 
@@ -94,7 +92,13 @@ NPP_Destroy (NPP instance, NPSavedData **saved_data)
 NPError
 NPP_SetWindow (NPP instance, NPWindow *window)
 {
-  /* FIXME: implement me */
+  if (!instance)
+    return NPERR_INVALID_INSTANCE_ERROR;
+  
+  NPPGbpData *data = (NPPGbpData *) instance->pdata;
+  g_object_set (data->player, "xid", (gulong) window->window, NULL);
+  gbp_player_start (data->player);
+  
   return NPERR_NO_ERROR;
 }
 
