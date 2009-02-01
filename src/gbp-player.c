@@ -23,8 +23,7 @@
 #include "gbp-player.h"
 #include "gbp-marshal.h"
 
-GST_DEBUG_CATEGORY_STATIC (gbp_player_debug);
-#define GST_CAT_DEFAULT gbp_player_debug
+GST_DEBUG_CATEGORY (gbp_player_debug);
 
 G_DEFINE_TYPE (GbpPlayer, gbp_player, G_TYPE_OBJECT);
 
@@ -80,7 +79,7 @@ gbp_player_dispose (GObject *object)
     player->priv->disposed = TRUE;
   }
 
-  G_OBJECT_GET_CLASS (object)->dispose (object);
+  G_OBJECT_CLASS (gbp_player_parent_class)->dispose (object);
 }
 
 static void
@@ -90,7 +89,7 @@ gbp_player_finalize (GObject *object)
  
   g_free (player->priv->uri);
 
-  G_OBJECT_GET_CLASS (object)->finalize (object);
+  G_OBJECT_CLASS (gbp_player_parent_class)->finalize (object);
 }
 
 static void
@@ -223,11 +222,11 @@ build_pipeline (GbpPlayer *player)
   }   
 
   player->priv->bus = gst_pipeline_get_bus (player->priv->pipeline);
-  gst_bus_add_signal_watch (player->priv->bus);
+  gst_bus_enable_sync_message_emission (player->priv->bus);
   g_object_connect (player->priv->bus,
-      "signal::message::state-changed", G_CALLBACK (on_bus_state_changed_cb), player,
-      "signal::message::eos", G_CALLBACK (on_bus_eos_cb), player,
-      "signal::message::error", G_CALLBACK (on_bus_error_cb), player,
+      "signal::sync-message::state-changed", G_CALLBACK (on_bus_state_changed_cb), player,
+      "signal::sync-message::eos", G_CALLBACK (on_bus_eos_cb), player,
+      "signal::sync-message::error", G_CALLBACK (on_bus_error_cb), player,
       NULL);
 
   player->priv->have_pipeline = TRUE;
@@ -287,7 +286,6 @@ on_bus_state_changed_cb (GstBus *bus, GstMessage *message,
   if (new_state == GST_STATE_PAUSED)
     /* FIXME: this will also happen during buffering */
     g_signal_emit (player, player_signals[SIGNAL_PAUSED], 0);
-    ;
 }
 
 static void

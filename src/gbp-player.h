@@ -38,6 +38,9 @@ G_BEGIN_DECLS
 #define GBP_IS_PLAYER_CLASS(klass) \
   (G_TYPE_CHECK_CLASS_TYPE((klass),GBP_TYPE_PLAYER))
 
+GST_DEBUG_CATEGORY_EXTERN (gbp_player_debug);
+#define GST_CAT_DEFAULT gbp_player_debug
+
 typedef struct _GbpPlayer GbpPlayer;
 typedef struct _GbpPlayerPrivate GbpPlayerPrivate;
 typedef struct _GbpPlayerClass GbpPlayerClass;

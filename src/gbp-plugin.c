@@ -20,6 +20,8 @@
  * Boston, MA 02111-1307, USA.
  */
 
+#include <string.h>
+
 #include "gbp-plugin.h"
 
 GList *mime_types;
@@ -66,7 +68,7 @@ gbp_plugin_add_mime_type (const char *mime_type)
 gboolean
 gbp_plugin_remove_mime_type (const char *mime_type)
 {
-  GList *walk, *tmp;
+  GList *walk;
 
   for (walk = mime_types; walk != NULL; walk = walk->next) {
     if (!strcmp (walk->data, mime_type)) {

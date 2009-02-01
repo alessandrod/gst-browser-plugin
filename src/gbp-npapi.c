@@ -55,6 +55,9 @@ NPP_New (NPMIMEType plugin_type, NPP instance, uint16 mode,
   if (uri == NULL || width == 0 || height == 0)
     return NPERR_INVALID_PARAM;
 
+  g_type_init ();
+  gst_init (NULL, NULL);
+
   player = g_object_new (GBP_TYPE_PLAYER, NULL);
   if (player == NULL)
     return NPERR_OUT_OF_MEMORY_ERROR;
@@ -163,22 +166,16 @@ NP_GetMIMEDescription()
   return gbp_plugin_get_mime_types_description ();
 }
 
-NPError
-NP_Initialize (NPNetscapeFuncs *mozilla_vtable, NPPluginFuncs *plugin_vtable)
+static NPError
+fill_plugin_vtable(NPPluginFuncs *plugin_vtable)
 {
-	if (mozilla_vtable == NULL || plugin_vtable == NULL)
-		return NPERR_INVALID_FUNCTABLE_ERROR;
-	
-  if (mozilla_vtable->size < sizeof (NPNetscapeFuncs))
-		return NPERR_INVALID_FUNCTABLE_ERROR;
-	
+  if (plugin_vtable == NULL)
+    return NPERR_INVALID_FUNCTABLE_ERROR;
+  
   if (plugin_vtable->size < sizeof (NPPluginFuncs))
 		return NPERR_INVALID_FUNCTABLE_ERROR;
-    
-  memcpy (&NPNFuncs, mozilla_vtable, sizeof (NPNetscapeFuncs));
-  NPNFuncs.size = sizeof (NPNetscapeFuncs);
-
-	plugin_vtable->size = sizeof (NPPluginFuncs);
+	
+  plugin_vtable->size = sizeof (NPPluginFuncs);
 	plugin_vtable->version = (NP_VERSION_MAJOR << 8) + NP_VERSION_MINOR;
 	plugin_vtable->newp = NewNPP_NewProc (NPP_New);
 	plugin_vtable->destroy = NewNPP_DestroyProc (NPP_Destroy);
@@ -199,8 +196,35 @@ NP_Initialize (NPNetscapeFuncs *mozilla_vtable, NPPluginFuncs *plugin_vtable)
 }
 
 NPError
+NP_Initialize (NPNetscapeFuncs *mozilla_vtable, NPPluginFuncs *plugin_vtable)
+{
+	if (mozilla_vtable == NULL)
+		return NPERR_INVALID_FUNCTABLE_ERROR;
+	
+  if (mozilla_vtable->size < sizeof (NPNetscapeFuncs))
+		return NPERR_INVALID_FUNCTABLE_ERROR;
+    
+  memcpy (&NPNFuncs, mozilla_vtable, sizeof (NPNetscapeFuncs));
+  NPNFuncs.size = sizeof (NPNetscapeFuncs);
+
+#ifndef XP_MACOSX
+  return fill_plugin_vtable (plugin_vtable);
+#endif
+
+  return NPERR_NO_ERROR;
+}
+
+NPError
+NP_GetEntryPoints(NPPluginFuncs *plugin_vtable)
+{
+  return fill_plugin_vtable (plugin_vtable);
+}
+
+NPError
 NP_Shutdown ()
 {
+  /* FIXME: implement me */
+  return NPERR_NO_ERROR;
 }
 
 NPError NP_GetValue (NPP instance, NPPVariable variable, void *value)
