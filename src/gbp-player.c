@@ -264,6 +264,17 @@ gbp_player_pause (GbpPlayer *player)
 {
   g_return_if_fail (player != NULL);
   
+  if (player->priv->have_pipeline == FALSE) {
+    if (!build_pipeline (player))
+      /* player::error has been emitted, return */
+      return;
+  }
+
+  if (player->priv->uri_changed) {
+    g_object_set (player->priv->pipeline, "uri", player->priv->uri, NULL);
+    player->priv->uri_changed = FALSE;
+  }
+  
   gst_element_set_state (GST_ELEMENT (player->priv->pipeline),
       GST_STATE_PAUSED);
 }
