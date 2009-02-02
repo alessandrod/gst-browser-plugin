@@ -187,3 +187,21 @@ void NPN_ForceRedraw(NPP instance)
 {
   (*NPNFuncs.forceredraw)(instance);
 }
+
+void NPN_GetStringIdentifiers(const NPUTF8 **names, int32_t nameCount,
+                              NPIdentifier *identifiers)
+{
+  return NPNFuncs.getstringidentifiers(names, nameCount, identifiers);
+}
+
+void NPN_SetException(NPObject* obj, const NPUTF8 *message)
+{
+  NPNFuncs.setexception(obj, message);
+}
+
+NPObject *NPN_CreateObject(NPP npp, NPClass *aClass)
+{
+  return NPNFuncs.createobject(npp, aClass);
+}
+
+

@@ -19,22 +19,31 @@
  * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
  * Boston, MA 02111-1307, USA.
  */
-#ifndef GBP_NPAPI_H
-#define GBP_NPAPI_H
 
-#include "npapi.h"
-#include "npupp.h"
-#include "gbp-player.h"
+#ifndef GBP_NP_CLASS_H
+#define GBP_NP_CLASS_H
+
+#include "gbp-npapi.h"
+#include "npruntime.h"
 
 G_BEGIN_DECLS
 
-#define NPP_INSTANCE_GET_DATA(instance) ((NPPGbpData *)(instance->pdata))
-
-typedef struct _NPPGbpData
+typedef struct _GbpNPClass
 {
-  GbpPlayer *player;
-} NPPGbpData;
+  NPClass klass;
+} GbpNPClass;
+
+typedef struct _GbpNPObject
+{
+  NPObject object;
+  NPP instance;
+} GbpNPObject;
+
+extern GbpNPClass gbp_np_class;
+
+void gbp_np_class_init ();
+void gbp_np_class_free ();
 
 G_END_DECLS
 
-#endif /* GBP_NPAPI_H */
+#endif /* GBP_NP_CLASS_H */

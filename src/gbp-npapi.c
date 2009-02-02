@@ -22,6 +22,7 @@
 
 #include "gbp-npapi.h"
 #include "gbp-plugin.h"
+#include "gbp-np-class.h"
 #include <string.h>
 
 NPNetscapeFuncs NPNFuncs;
@@ -97,7 +98,7 @@ NPP_SetWindow (NPP instance, NPWindow *window)
   
   NPPGbpData *data = (NPPGbpData *) instance->pdata;
   g_object_set (data->player, "xid", (gulong) window->window, NULL);
-  gbp_player_start (data->player);
+  gbp_player_pause (data->player);
   
   return NPERR_NO_ERROR;
 }
@@ -211,6 +212,9 @@ NP_Initialize (NPNetscapeFuncs *mozilla_vtable, NPPluginFuncs *plugin_vtable)
   memcpy (&NPNFuncs, mozilla_vtable, sizeof (NPNetscapeFuncs));
   NPNFuncs.size = sizeof (NPNetscapeFuncs);
 
+  /* initialize the NPClass used for the npruntime js object */
+  gbp_np_class_init ();
+
 #ifndef XP_MACOSX
   return fill_plugin_vtable (plugin_vtable);
 #endif
@@ -227,7 +231,8 @@ NP_GetEntryPoints(NPPluginFuncs *plugin_vtable)
 NPError
 NP_Shutdown ()
 {
-  /* FIXME: implement me */
+  gbp_np_class_free ();
+
   return NPERR_NO_ERROR;
 }
 
@@ -250,7 +255,8 @@ NPError NP_GetValue (NPP instance, NPPVariable variable, void *value)
       rv = NPERR_GENERIC_ERROR;
       break;
     case NPPVpluginScriptableNPObject:
-      rv = NPERR_INVALID_PLUGIN_ERROR;
+      *((NPObject **) value) = NPN_CreateObject (instance,
+          (NPClass *) &gbp_np_class);
       break;
     default:
       rv = NPERR_GENERIC_ERROR;

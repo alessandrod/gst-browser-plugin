@@ -3,9 +3,10 @@ lib_LTLIBRARIES = libgst-browser-plugin.la
 
 libgst_browser_plugin_la_SOURCES = \
 	gbp-npapi.c \
+  gbp-np-class.c \
   npn-gate.c \
   gbp-plugin.c \
-  gbp-player.c 
+  gbp-player.c
 
 nodist_libgst_browser_plugin_la_SOURCES = \
   gbp-marshal.c
@@ -16,6 +17,7 @@ libgst_browser_plugin_la_LDFLAGS = -avoid-version -no-undefined
 
 noinst_HEADERS = \
   gbp-npapi.h \
+  gbp-np-class.h \
   gbp-player.h \
   gbp-plugin.h \
   npapi.h \
