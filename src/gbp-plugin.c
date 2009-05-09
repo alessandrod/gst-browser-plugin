@@ -110,11 +110,11 @@ gbp_plugin_get_mime_types_description ()
   for (walk = mime_types, i=0 ; walk != NULL; walk = walk->next, ++i)
     mimes[i] = (gchar *) walk->data;
 
-  mime_types_description = g_strjoinv(";", mimes);
+  mime_types_description = g_strjoinv(":", mimes);
   /* add trailing ';' */
   len = strlen(mime_types_description);
   mime_types_description = (gchar *) g_realloc(mime_types_description, len + 2);
-  mime_types_description[len] = ';';
+  mime_types_description[len] = ':';
   mime_types_description[len+1] = '\0';
 
   g_free (mimes);
