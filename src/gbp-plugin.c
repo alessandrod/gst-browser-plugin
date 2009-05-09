@@ -97,6 +97,7 @@ gbp_plugin_get_mime_types_description ()
   GList *walk;
   int i;
   gchar **mimes;
+  guint len;
 
   if (mime_types_description != NULL)
     return mime_types_description;
@@ -110,6 +111,11 @@ gbp_plugin_get_mime_types_description ()
     mimes[i] = (gchar *) walk->data;
 
   mime_types_description = g_strjoinv(";", mimes);
+  /* add trailing ';' */
+  len = strlen(mime_types_description);
+  mime_types_description = (gchar *) g_realloc(mime_types_description, len + 2);
+  mime_types_description[len] = ';';
+  mime_types_description[len+1] = '\0';
 
   g_free (mimes);
 
