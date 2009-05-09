@@ -101,6 +101,7 @@ static void
 gbp_player_class_init (GbpPlayerClass *klass)
 {
   GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
+  GParamFlags flags = (GParamFlags) (G_PARAM_CONSTRUCT | G_PARAM_READWRITE);
 
   gobject_class->get_property = gbp_player_get_property;
   gobject_class->set_property = gbp_player_set_property;
@@ -109,19 +110,19 @@ gbp_player_class_init (GbpPlayerClass *klass)
 
   g_object_class_install_property (gobject_class, PROP_URI,
       g_param_spec_string ("uri", "Uri", "Playback URI",
-          "", G_PARAM_CONSTRUCT | G_PARAM_READWRITE));
+          "", flags));
   
   g_object_class_install_property (gobject_class, PROP_XID,
       g_param_spec_ulong ("xid", "XID", "Window XID",
-          0, G_MAXULONG, 0, G_PARAM_CONSTRUCT | G_PARAM_READWRITE));
+          0, G_MAXULONG, 0, flags));
   
   g_object_class_install_property (gobject_class, PROP_WIDTH,
       g_param_spec_uint ("width", "Width", "Width",
-          0, G_MAXINT32, 0, G_PARAM_CONSTRUCT | G_PARAM_READWRITE));
+          0, G_MAXINT32, 0, flags));
   
   g_object_class_install_property (gobject_class, PROP_HEIGHT,
       g_param_spec_uint ("height", "Height", "Height",
-          0, G_MAXINT32, 0, G_PARAM_CONSTRUCT | G_PARAM_READWRITE));
+          0, G_MAXINT32, 0, flags));
 
   player_signals[SIGNAL_PLAYING] = g_signal_new ("playing",
       G_TYPE_FROM_CLASS (klass), G_SIGNAL_RUN_LAST,

@@ -35,6 +35,13 @@ typedef struct _NPPGbpData
   GbpPlayer *player;
 } NPPGbpData;
 
+char *NP_GetMIMEDescription();
+NPError NP_Initialize (NPNetscapeFuncs *mozilla_vtable, NPPluginFuncs *plugin_vtable);
+NPError NP_GetEntryPoints (NPPluginFuncs *plugin_vtable);
+NPError NP_Shutdown ();
+NPError NP_GetValue (NPP instance, NPPVariable variable, void *value);
+NPError NP_SetValue (NPP instance, NPNVariable variable, void *ret_value);
+
 G_END_DECLS
 
 #endif /* GBP_NPAPI_H */

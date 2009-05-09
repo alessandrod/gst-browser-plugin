@@ -59,7 +59,7 @@ NPP_New (NPMIMEType plugin_type, NPP instance, uint16 mode,
   g_type_init ();
   gst_init (NULL, NULL);
 
-  player = g_object_new (GBP_TYPE_PLAYER, NULL);
+  player = (GbpPlayer *) g_object_new (GBP_TYPE_PLAYER, NULL);
   if (player == NULL)
     return NPERR_OUT_OF_MEMORY_ERROR;
 
@@ -167,8 +167,13 @@ NPP_SetValue (NPP instance, NPNVariable variable, void *ret_value)
 char *
 NP_GetMIMEDescription()
 {
-  gbp_plugin_add_mime_type ("application/x-gbp");
-  return gbp_plugin_get_mime_types_description ();
+  static char *mime = gbp_plugin_get_mime_types_description();
+  if (mime == NULL) {
+    gbp_plugin_add_mime_type ("application/x-gbp");
+    mime = gbp_plugin_get_mime_types_description ();
+  }
+
+  return mime;
 }
 
 static NPError
@@ -242,10 +247,10 @@ NPError NP_GetValue (NPP instance, NPPVariable variable, void *value)
 
   switch (variable) {
     case NPPVpluginNameString:
-      *((char **) value) = "GStreamer Browser Plugin";
+      *((const char **) value) = "GStreamer Browser Plugin";
       break;
     case NPPVpluginDescriptionString:
-      *((char **) value) = "GStreamer based playback plugin";
+      *((const char **) value) = "GStreamer based playback plugin";
       break;
     case NPPVpluginNeedsXEmbed:
       *((NPBool *) value) = TRUE;

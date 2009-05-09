@@ -53,7 +53,7 @@ GbpNPClassMethod gbp_np_class_methods[] = {
 static NPObject *
 gbp_np_class_allocate (NPP npp, NPClass *aClass)
 {
-  GbpNPObject *obj = NPN_MemAlloc (sizeof (GbpNPObject));
+  GbpNPObject *obj = (GbpNPObject *) NPN_MemAlloc (sizeof (GbpNPObject));
   obj->instance = npp;
   
   return (NPObject *) obj;
@@ -71,7 +71,7 @@ gbp_np_class_deallocate (NPObject *npobj)
 static bool
 gbp_np_class_has_method (NPObject *obj, NPIdentifier name)
 {
-  int i;
+  guint i;
 
   for (i = 0; i < methods_num; ++i) {
     if (name == method_identifiers[i])
@@ -85,7 +85,7 @@ static bool
 gbp_np_class_invoke (NPObject *obj, NPIdentifier name,
     const NPVariant *args, uint32_t argCount, NPVariant *result)
 {
-  int i;
+  guint i;
 
   for (i = 0; i < methods_num; ++i) {
     if (name == method_identifiers[i]) {
@@ -143,7 +143,7 @@ gbp_np_class_method_start (NPObject *npobj, NPIdentifier name,
   g_return_val_if_fail (args != NULL, FALSE);
   g_return_val_if_fail (result != NULL, FALSE);
 
-  NPPGbpData *data = obj->instance->pdata;
+  NPPGbpData *data = (NPPGbpData *) obj->instance->pdata;
   gbp_player_start (data->player);
 
   VOID_TO_NPVARIANT (*result);
@@ -161,7 +161,7 @@ gbp_np_class_method_stop (NPObject *npobj, NPIdentifier name,
   g_return_val_if_fail (args != NULL, FALSE);
   g_return_val_if_fail (result != NULL, FALSE);
 
-  NPPGbpData *data = obj->instance->pdata;
+  NPPGbpData *data = (NPPGbpData *) obj->instance->pdata;
   gbp_player_stop (data->player);
 
   VOID_TO_NPVARIANT (*result);
@@ -179,7 +179,7 @@ gbp_np_class_method_pause (NPObject *npobj, NPIdentifier name,
   g_return_val_if_fail (args != NULL, FALSE);
   g_return_val_if_fail (result != NULL, FALSE);
 
-  NPPGbpData *data = obj->instance->pdata;
+  NPPGbpData *data = (NPPGbpData *) obj->instance->pdata;
   gbp_player_pause (data->player);
 
   VOID_TO_NPVARIANT (*result);
@@ -216,7 +216,7 @@ gbp_np_class_init ()
   method_identifiers = \
       (NPIdentifier *) NPN_MemAlloc (sizeof (NPIdentifier) * methods_num);
 
-  method_names = NPN_MemAlloc (sizeof (char *) * methods_num);
+  method_names = (const char **) NPN_MemAlloc (sizeof (char *) * methods_num);
   for (i = 0; gbp_np_class_methods[i].name != NULL; ++i)
     method_names[i] = gbp_np_class_methods[i].name;
 
