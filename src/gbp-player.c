@@ -34,7 +34,7 @@ enum {
   PROP_URI,
   PROP_XID,
   PROP_WIDTH,
-  PROP_HEIGHT
+  PROP_HEIGHT,
 };
 
 enum {

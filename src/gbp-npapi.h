@@ -33,6 +33,7 @@ G_BEGIN_DECLS
 typedef struct _NPPGbpData
 {
   GbpPlayer *player;
+  NPObject *errorHandler;
 } NPPGbpData;
 
 char *NP_GetMIMEDescription();

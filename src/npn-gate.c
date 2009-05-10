@@ -86,7 +86,7 @@ NPError NPN_PostURLNotify(NPP instance, const char* url, const char* window, uin
 NPError NPN_PostURL(NPP instance, const char* url, const char* window, uint32 len, const char* buf, NPBool file)
 {
   return (*NPNFuncs.posturl)(instance, url, window, len, buf, file);
-} 
+}
 
 NPError NPN_RequestRead(NPStream* stream, NPByteRange* rangeList)
 {
@@ -204,4 +204,29 @@ NPObject *NPN_CreateObject(NPP npp, NPClass *aClass)
   return NPNFuncs.createobject(npp, aClass);
 }
 
+NPObject *NPN_RetainObject(NPObject *obj)
+{
+    return NPNFuncs.retainobject(obj);
+}
 
+void NPN_ReleaseObject(NPObject *obj)
+{
+    NPNFuncs.releaseobject(obj);
+}
+
+bool NPN_Invoke(NPP npp, NPObject* obj, NPIdentifier methodName,
+                const NPVariant *args, uint32_t argCount, NPVariant *result)
+{
+    return NPNFuncs.invoke(npp, obj, methodName, args, argCount, result);
+}
+
+bool NPN_InvokeDefault(NPP npp, NPObject* obj, const NPVariant *args,
+                       uint32_t argCount, NPVariant *result)
+{
+    return NPNFuncs.invokeDefault(npp, obj, args, argCount, result);
+}
+
+void NPN_ReleaseVariantValue(NPVariant *variant)
+{
+    NPNFuncs.releasevariantvalue(variant);
+}

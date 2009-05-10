@@ -37,6 +37,7 @@ typedef struct _GbpNPObject
 {
   NPObject object;
   NPP instance;
+
 } GbpNPObject;
 
 extern GbpNPClass gbp_np_class;

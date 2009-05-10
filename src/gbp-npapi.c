@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2009 Alessandro Decina
- * 
+ *
  * Authors:
  *   Alessandro Decina <alessandro.d@gmail.com>
  *
@@ -25,10 +25,14 @@
 #include "gbp-np-class.h"
 #include <string.h>
 
-NPNetscapeFuncs NPNFuncs;
+
+void on_error_cb (GbpPlayer *player, GError *error, const char *debug,
+    gpointer user_data);
 
 NPError NP_GetValue (NPP instance, NPPVariable variable, void *ret_value);
 NPError NP_SetValue (NPP instance, NPNVariable variable, void *ret_value);
+
+NPNetscapeFuncs NPNFuncs;
 
 /* NPP vtable symbols */
 NPError
@@ -68,6 +72,10 @@ NPP_New (NPMIMEType plugin_type, NPP instance, uint16 mode,
 
   pdata = (NPPGbpData *) NPN_MemAlloc (sizeof (NPPGbpData));
   pdata->player = player;
+  pdata->errorHandler = NULL;
+
+  g_object_connect (G_OBJECT (player), "signal::error",
+      G_CALLBACK (on_error_cb), instance, NULL);
 
   instance->pdata = pdata;
 
@@ -79,11 +87,14 @@ NPP_Destroy (NPP instance, NPSavedData **saved_data)
 {
   if (!instance)
     return NPERR_INVALID_INSTANCE_ERROR;
-  
+
   NPPGbpData *data = (NPPGbpData *) instance->pdata;
 
   gbp_player_stop (data->player);
   g_object_unref (data->player);
+
+  if (data->errorHandler != NULL)
+    NPN_ReleaseObject (data->errorHandler);
 
   NPN_MemFree (data);
 
@@ -95,11 +106,11 @@ NPP_SetWindow (NPP instance, NPWindow *window)
 {
   if (!instance)
     return NPERR_INVALID_INSTANCE_ERROR;
-  
+
   NPPGbpData *data = (NPPGbpData *) instance->pdata;
   g_object_set (data->player, "xid", (gulong) window->window, NULL);
   gbp_player_pause (data->player);
-  
+
   return NPERR_NO_ERROR;
 }
 
@@ -181,7 +192,7 @@ fill_plugin_vtable(NPPluginFuncs *plugin_vtable)
 {
   if (plugin_vtable == NULL)
     return NPERR_INVALID_FUNCTABLE_ERROR;
-  
+
   if (plugin_vtable->size < sizeof (NPPluginFuncs))
 		return NPERR_INVALID_FUNCTABLE_ERROR;
 	
@@ -198,7 +209,7 @@ fill_plugin_vtable(NPPluginFuncs *plugin_vtable)
 	plugin_vtable->print = NewNPP_PrintProc (NPP_Print);
 	plugin_vtable->event = NewNPP_HandleEventProc (NPP_HandleEvent);
 	plugin_vtable->urlnotify = NewNPP_URLNotifyProc (NPP_URLNotify);
-	plugin_vtable->javaClass = NULL; 
+	plugin_vtable->javaClass = NULL;
 	plugin_vtable->getvalue = NewNPP_GetValueProc (NPP_GetValue);
 	plugin_vtable->setvalue = NewNPP_SetValueProc (NPP_SetValue);
 
@@ -213,7 +224,7 @@ NP_Initialize (NPNetscapeFuncs *mozilla_vtable, NPPluginFuncs *plugin_vtable)
 	
   if (mozilla_vtable->size < sizeof (NPNetscapeFuncs))
 		return NPERR_INVALID_FUNCTABLE_ERROR;
-    
+
   memcpy (&NPNFuncs, mozilla_vtable, sizeof (NPNetscapeFuncs));
   NPNFuncs.size = sizeof (NPNetscapeFuncs);
 
@@ -274,5 +285,34 @@ NPError NP_GetValue (NPP instance, NPPVariable variable, void *value)
 NPError NP_SetValue (NPP instance, NPNVariable variable, void *ret_value)
 {
   return NPERR_GENERIC_ERROR;
+}
+
+void on_error_cb (GbpPlayer *player, GError *error, const char *debug,
+    gpointer user_data)
+{
+  NPP instance = (NPP) user_data;
+  NPPGbpData *data = (NPPGbpData *) instance->pdata;
+  NPVariant args[2];
+  NPVariant result;
+
+  g_return_if_fail (player != NULL);
+  g_return_if_fail (error != NULL);
+
+  if (data->errorHandler == NULL) {
+    /* no error handler installed */
+
+    g_printerr ("error %s: %s\n", error->message, debug);
+    return;
+  }
+
+  /* call errorHandler (message, debug) */
+  STRINGZ_TO_NPVARIANT (error->message, args[0]);
+  STRINGZ_TO_NPVARIANT (debug, args[1]);
+
+  /* ta-daaaa */
+  NPN_InvokeDefault (instance, data->errorHandler, args, 2, &result);
+
+  /* just ignore the return value for now */
+  NPN_ReleaseVariantValue (&result);
 }
 

@@ -35,6 +35,9 @@ static bool gbp_np_class_method_stop (NPObject *obj, NPIdentifier name,
     const NPVariant *args, uint32_t argCount, NPVariant *result);
 static bool gbp_np_class_method_pause (NPObject *obj, NPIdentifier name,
     const NPVariant *args, uint32_t argCount, NPVariant *result);
+static bool gbp_np_class_method_set_error_handler (NPObject *obj,
+    NPIdentifier name, const NPVariant *args, uint32_t argCount,
+    NPVariant *result);
 
 /* cached method ids, allocated by gbp_np_class_init and destroyed by
  * gbp_np_class_free */
@@ -45,6 +48,7 @@ GbpNPClassMethod gbp_np_class_methods[] = {
   {"start", gbp_np_class_method_start},
   {"stop", gbp_np_class_method_stop},
   {"pause", gbp_np_class_method_pause},
+  {"setErrorHandler", gbp_np_class_method_set_error_handler},
   
   /* sentinel */
   {NULL, NULL}
@@ -181,6 +185,26 @@ gbp_np_class_method_pause (NPObject *npobj, NPIdentifier name,
 
   NPPGbpData *data = (NPPGbpData *) obj->instance->pdata;
   gbp_player_pause (data->player);
+
+  VOID_TO_NPVARIANT (*result);
+  return TRUE;
+}
+
+static bool
+gbp_np_class_method_set_error_handler (NPObject *npobj, NPIdentifier name,
+    const NPVariant *args, uint32_t argCount, NPVariant *result)
+{
+  GbpNPObject *obj = (GbpNPObject *) npobj;
+
+  g_return_val_if_fail (obj != NULL, FALSE);
+  g_return_val_if_fail (name != NULL, FALSE);
+  g_return_val_if_fail (args != NULL, FALSE);
+  g_return_val_if_fail (argCount == 1, FALSE);
+  g_return_val_if_fail (args[0].type == NPVariantType_Object, FALSE);
+  g_return_val_if_fail (result != NULL, FALSE);
+
+  NPPGbpData *data = (NPPGbpData *) obj->instance->pdata;
+  data->errorHandler = NPN_RetainObject(args[0].value.objectValue);
 
   VOID_TO_NPVARIANT (*result);
   return TRUE;
