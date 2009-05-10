@@ -132,7 +132,6 @@ NPP_SetWindow (NPP instance, NPWindow *window)
 
   NPPGbpData *data = (NPPGbpData *) instance->pdata;
   g_object_set (data->player, "xid", (gulong) window->window, NULL);
-  gbp_player_pause (data->player);
 
   return NPERR_NO_ERROR;
 }
