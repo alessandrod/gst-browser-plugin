@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2009 Alessandro Decina
- * 
+ *
  * Authors:
  *   Alessandro Decina <alessandro.d@gmail.com>
  *
@@ -91,7 +91,7 @@ static void
 gbp_player_finalize (GObject *object)
 {
   GbpPlayer *player = GBP_PLAYER (object);
- 
+
   g_free (player->priv->uri);
 
   G_OBJECT_CLASS (gbp_player_parent_class)->finalize (object);
@@ -111,15 +111,15 @@ gbp_player_class_init (GbpPlayerClass *klass)
   g_object_class_install_property (gobject_class, PROP_URI,
       g_param_spec_string ("uri", "Uri", "Playback URI",
           "", flags));
-  
+
   g_object_class_install_property (gobject_class, PROP_XID,
       g_param_spec_ulong ("xid", "XID", "Window XID",
           0, G_MAXULONG, 0, flags));
-  
+
   g_object_class_install_property (gobject_class, PROP_WIDTH,
       g_param_spec_uint ("width", "Width", "Width",
           0, G_MAXINT32, 0, flags));
-  
+
   g_object_class_install_property (gobject_class, PROP_HEIGHT,
       g_param_spec_uint ("height", "Height", "Height",
           0, G_MAXINT32, 0, flags));
@@ -128,17 +128,17 @@ gbp_player_class_init (GbpPlayerClass *klass)
       G_TYPE_FROM_CLASS (klass), G_SIGNAL_RUN_LAST,
       G_STRUCT_OFFSET (GbpPlayerClass, playing), NULL, NULL,
       gbp_marshal_VOID__VOID, G_TYPE_NONE, 0);
-  
+
   player_signals[SIGNAL_PAUSED] = g_signal_new ("paused",
       G_TYPE_FROM_CLASS (klass), G_SIGNAL_RUN_LAST,
       G_STRUCT_OFFSET (GbpPlayerClass, paused), NULL, NULL,
       gbp_marshal_VOID__VOID, G_TYPE_NONE, 0);
-  
+
   player_signals[SIGNAL_STOPPED] = g_signal_new ("stopped",
       G_TYPE_FROM_CLASS (klass), G_SIGNAL_RUN_LAST,
       G_STRUCT_OFFSET (GbpPlayerClass, stopped), NULL, NULL,
       gbp_marshal_VOID__VOID, G_TYPE_NONE, 0);
-  
+
   player_signals[SIGNAL_ERROR] = g_signal_new ("error",
       G_TYPE_FROM_CLASS (klass), G_SIGNAL_RUN_LAST,
       G_STRUCT_OFFSET (GbpPlayerClass, error), NULL, NULL,
@@ -151,7 +151,7 @@ static void
 gbp_player_init (GbpPlayer *player)
 {
   GbpPlayerPrivate *priv;
-  
+
   player->priv = priv = G_TYPE_INSTANCE_GET_PRIVATE (player,
       GBP_TYPE_PLAYER, GbpPlayerPrivate);
 }
@@ -161,7 +161,7 @@ gbp_player_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec)
 {
   GbpPlayer *player = GBP_PLAYER (object);
-  
+
   switch (prop_id)
   {
     case PROP_URI:
@@ -219,13 +219,13 @@ build_pipeline (GbpPlayer *player)
     /* FIXME: create our domain */
     GError *error = g_error_new (GST_LIBRARY_ERROR,
         GST_LIBRARY_ERROR_FAILED, "couldn't find playbin");
-    
+
     g_signal_emit (player, player_signals[SIGNAL_ERROR], 0,
         error, "more debug than that?");
-    
+
     g_error_free (error);
     return FALSE;
-  }   
+  }
 
   player->priv->bus = gst_pipeline_get_bus (player->priv->pipeline);
   gst_bus_enable_sync_message_emission (player->priv->bus);
@@ -264,7 +264,7 @@ void
 gbp_player_pause (GbpPlayer *player)
 {
   g_return_if_fail (player != NULL);
-  
+
   if (player->priv->have_pipeline == FALSE) {
     if (!build_pipeline (player))
       /* player::error has been emitted, return */
@@ -275,7 +275,7 @@ gbp_player_pause (GbpPlayer *player)
     g_object_set (player->priv->pipeline, "uri", player->priv->uri, NULL);
     player->priv->uri_changed = FALSE;
   }
-  
+
   gst_element_set_state (GST_ELEMENT (player->priv->pipeline),
       GST_STATE_PAUSED);
 }
@@ -284,7 +284,7 @@ void
 gbp_player_stop (GbpPlayer *player)
 {
   g_return_if_fail (player != NULL);
-  
+
   gst_element_set_state (GST_ELEMENT (player->priv->pipeline),
       GST_STATE_NULL);
 }
@@ -301,9 +301,13 @@ on_bus_state_changed_cb (GstBus *bus, GstMessage *message,
   gst_message_parse_state_changed (message,
       &old_state, &new_state, &pending_state);
 
-  if (new_state == GST_STATE_PAUSED)
+  if (new_state == GST_STATE_PAUSED && pending_state == GST_STATE_VOID_PENDING)
     /* FIXME: this will also happen during buffering */
     g_signal_emit (player, player_signals[SIGNAL_PAUSED], 0);
+
+  if (new_state == GST_STATE_PLAYING && pending_state == GST_STATE_VOID_PENDING)
+    /* FIXME: this will also happen during buffering */
+    g_signal_emit (player, player_signals[SIGNAL_PLAYING], 0);
 }
 
 static void

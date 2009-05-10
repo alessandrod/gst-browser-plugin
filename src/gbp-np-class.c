@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2009 Alessandro Decina
- * 
+ *
  * Authors:
  *   Alessandro Decina <alessandro.d@gmail.com>
  *
@@ -38,6 +38,9 @@ static bool gbp_np_class_method_pause (NPObject *obj, NPIdentifier name,
 static bool gbp_np_class_method_set_error_handler (NPObject *obj,
     NPIdentifier name, const NPVariant *args, uint32_t argCount,
     NPVariant *result);
+static bool gbp_np_class_method_set_state_handler (NPObject *obj,
+    NPIdentifier name, const NPVariant *args, uint32_t argCount,
+    NPVariant *result);
 
 /* cached method ids, allocated by gbp_np_class_init and destroyed by
  * gbp_np_class_free */
@@ -49,7 +52,8 @@ GbpNPClassMethod gbp_np_class_methods[] = {
   {"stop", gbp_np_class_method_stop},
   {"pause", gbp_np_class_method_pause},
   {"setErrorHandler", gbp_np_class_method_set_error_handler},
-  
+  {"setStateHandler", gbp_np_class_method_set_state_handler},
+
   /* sentinel */
   {NULL, NULL}
 };
@@ -59,7 +63,7 @@ gbp_np_class_allocate (NPP npp, NPClass *aClass)
 {
   GbpNPObject *obj = (GbpNPObject *) NPN_MemAlloc (sizeof (GbpNPObject));
   obj->instance = npp;
-  
+
   return (NPObject *) obj;
 }
 
@@ -93,7 +97,7 @@ gbp_np_class_invoke (NPObject *obj, NPIdentifier name,
 
   for (i = 0; i < methods_num; ++i) {
     if (name == method_identifiers[i]) {
-      
+
       return gbp_np_class_methods[i].method(obj, name,
           args, argCount, result);
     }
@@ -210,6 +214,27 @@ gbp_np_class_method_set_error_handler (NPObject *npobj, NPIdentifier name,
   return TRUE;
 }
 
+static bool
+gbp_np_class_method_set_state_handler (NPObject *npobj, NPIdentifier name,
+    const NPVariant *args, uint32_t argCount, NPVariant *result)
+{
+  GbpNPObject *obj = (GbpNPObject *) npobj;
+
+  g_return_val_if_fail (obj != NULL, FALSE);
+  g_return_val_if_fail (name != NULL, FALSE);
+  g_return_val_if_fail (args != NULL, FALSE);
+  g_return_val_if_fail (argCount == 1, FALSE);
+  g_return_val_if_fail (args[0].type == NPVariantType_Object, FALSE);
+  g_return_val_if_fail (result != NULL, FALSE);
+
+  NPPGbpData *data = (NPPGbpData *) obj->instance->pdata;
+  data->stateHandler = NPN_RetainObject(args[0].value.objectValue);
+
+  VOID_TO_NPVARIANT (*result);
+  return TRUE;
+
+}
+
 void
 gbp_np_class_init ()
 {
@@ -254,7 +279,7 @@ void
 gbp_np_class_free ()
 {
   NPClass *klass = (NPClass *) &gbp_np_class;
-  
+
   g_return_if_fail (klass->structVersion != 0);
 
   NPN_MemFree (method_identifiers);

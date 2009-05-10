@@ -28,11 +28,20 @@
 
 void on_error_cb (GbpPlayer *player, GError *error, const char *debug,
     gpointer user_data);
+void on_state_cb (GbpPlayer *player, gpointer user_data);
 
 NPError NP_GetValue (NPP instance, NPPVariable variable, void *ret_value);
 NPError NP_SetValue (NPP instance, NPNVariable variable, void *ret_value);
 
 NPNetscapeFuncs NPNFuncs;
+
+/* FIXME: hack to deal with braindead state notification API */
+struct StateClosure {
+  NPP instance;
+  const char *state;
+};
+
+static StateClosure state1, state2, state3;
 
 /* NPP vtable symbols */
 NPError
@@ -73,9 +82,20 @@ NPP_New (NPMIMEType plugin_type, NPP instance, uint16 mode,
   pdata = (NPPGbpData *) NPN_MemAlloc (sizeof (NPPGbpData));
   pdata->player = player;
   pdata->errorHandler = NULL;
+  pdata->stateHandler = NULL;
 
   g_object_connect (G_OBJECT (player), "signal::error",
       G_CALLBACK (on_error_cb), instance, NULL);
+
+  state1.instance = state2.instance = state3.instance = instance;
+  state1.state = "PLAYING";
+  state2.state = "PAUSED";
+  state2.state = "STOPPED";
+  g_object_connect (G_OBJECT (player),
+      "signal::playing", G_CALLBACK (on_state_cb), &state1,
+      "signal::paused", G_CALLBACK (on_state_cb), &state2,
+      "signal::stopped", G_CALLBACK (on_state_cb), &state3,
+      NULL);
 
   instance->pdata = pdata;
 
@@ -95,6 +115,9 @@ NPP_Destroy (NPP instance, NPSavedData **saved_data)
 
   if (data->errorHandler != NULL)
     NPN_ReleaseObject (data->errorHandler);
+
+  if (data->stateHandler != NULL)
+    NPN_ReleaseObject (data->stateHandler);
 
   NPN_MemFree (data);
 
@@ -298,19 +321,39 @@ void on_error_cb (GbpPlayer *player, GError *error, const char *debug,
   g_return_if_fail (player != NULL);
   g_return_if_fail (error != NULL);
 
-  if (data->errorHandler == NULL) {
-    /* no error handler installed */
-
-    g_printerr ("error %s: %s\n", error->message, debug);
-    return;
-  }
+  g_printerr ("error %s: %s\n", error->message, debug);
 
   /* call errorHandler (message, debug) */
   STRINGZ_TO_NPVARIANT (error->message, args[0]);
   STRINGZ_TO_NPVARIANT (debug, args[1]);
 
+  if (data->errorHandler == NULL)
+    return;
+
   /* ta-daaaa */
   NPN_InvokeDefault (instance, data->errorHandler, args, 2, &result);
+
+  /* just ignore the return value for now */
+  NPN_ReleaseVariantValue (&result);
+}
+
+void on_state_cb (GbpPlayer *player, gpointer user_data)
+{
+  struct StateClosure *state_closure = (struct StateClosure *) user_data;
+  NPP instance = state_closure->instance;
+  NPPGbpData *data = (NPPGbpData *) instance->pdata;
+  NPVariant args[1];
+  NPVariant result;
+
+  g_return_if_fail (player != NULL);
+
+  g_print ("new state %s\n", state_closure->state);
+
+  if (data->stateHandler == NULL)
+    return;
+
+  STRINGZ_TO_NPVARIANT (state_closure->state, args[0]);
+  NPN_InvokeDefault (instance, data->stateHandler, args, 1, &result);
 
   /* just ignore the return value for now */
   NPN_ReleaseVariantValue (&result);
