@@ -56,7 +56,7 @@ gbp_plugin_add_mime_type (const char *mime_type)
     last = walk;
   }
 
-  tmp = g_list_append (last, (char *) mime_type);
+  tmp = g_list_append (last, (gchar *) mime_type);
   if (last == NULL)
     mime_types = tmp;
 
@@ -105,10 +105,11 @@ gbp_plugin_get_mime_types_description ()
   if (mime_types == NULL)
     return NULL;
 
-  mimes = (gchar **) g_new (gchar *, g_list_length (mime_types));
+  mimes = (gchar **) g_new0 (gchar *, g_list_length (mime_types) + 1);
 
   for (walk = mime_types, i=0 ; walk != NULL; walk = walk->next, ++i)
     mimes[i] = (gchar *) walk->data;
+  mimes[i] = NULL;
 
   mime_types_description = g_strjoinv(":", mimes);
   /* add trailing ';' */
