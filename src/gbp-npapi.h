@@ -23,7 +23,8 @@
 #define GBP_NPAPI_H
 
 #include "npapi.h"
-#include "npupp.h"
+#include "npruntime.h"
+#include "npfunctions.h"
 #include "gbp-player.h"
 
 G_BEGIN_DECLS

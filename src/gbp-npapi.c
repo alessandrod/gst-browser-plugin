@@ -36,17 +36,17 @@ NPError NP_SetValue (NPP instance, NPNVariable variable, void *ret_value);
 NPNetscapeFuncs NPNFuncs;
 
 /* FIXME: hack to deal with braindead state notification API */
-struct StateClosure {
+typedef struct _StateClosure {
   NPP instance;
   const char *state;
-};
+} StateClosure;
 
-static StateClosure state1, state2, state3;
+StateClosure state1, state2, state3;
 
 /* NPP vtable symbols */
 NPError
-NPP_New (NPMIMEType plugin_type, NPP instance, uint16 mode,
-    int16 argc, char *argn[], char *argv[], NPSavedData *saved_data)
+NPP_New (NPMIMEType plugin_type, NPP instance, uint16_t mode,
+    int16_t argc, char *argn[], char *argv[], NPSavedData *saved_data)
 {
   GbpPlayer *player;
   NPPGbpData *pdata;
@@ -148,15 +148,15 @@ NPError NPP_DestroyStream (NPP instance, NPStream* stream, NPReason reason)
   return NPERR_GENERIC_ERROR;
 }
 
-int32
+int32_t
 NPP_WriteReady (NPP instance, NPStream* stream)
 {
   return G_MAXINT32;
 }
 
-int32
+int32_t
 NPP_Write (NPP instance, NPStream* stream,
-    int32 offset, int32 len, void* buffer)
+    int32_t offset, int32_t len, void* buffer)
 {
   return len;
 }
@@ -200,7 +200,7 @@ NPP_SetValue (NPP instance, NPNVariable variable, void *ret_value)
 char *
 NP_GetMIMEDescription()
 {
-  static char *mime = gbp_plugin_get_mime_types_description();
+  char *mime = gbp_plugin_get_mime_types_description();
   if (mime == NULL) {
     gbp_plugin_add_mime_type ("application/x-gbp");
     mime = gbp_plugin_get_mime_types_description ();
@@ -220,20 +220,20 @@ fill_plugin_vtable(NPPluginFuncs *plugin_vtable)
 	
   plugin_vtable->size = sizeof (NPPluginFuncs);
 	plugin_vtable->version = (NP_VERSION_MAJOR << 8) + NP_VERSION_MINOR;
-	plugin_vtable->newp = NewNPP_NewProc (NPP_New);
-	plugin_vtable->destroy = NewNPP_DestroyProc (NPP_Destroy);
-	plugin_vtable->setwindow = NewNPP_SetWindowProc (NPP_SetWindow);
-	plugin_vtable->newstream = NewNPP_NewStreamProc (NPP_NewStream);
-	plugin_vtable->destroystream = NewNPP_DestroyStreamProc (NPP_DestroyStream);
-	plugin_vtable->asfile = NewNPP_StreamAsFileProc (NPP_StreamAsFile);
-	plugin_vtable->writeready = NewNPP_WriteReadyProc (NPP_WriteReady);
-	plugin_vtable->write = NewNPP_WriteProc (NPP_Write);
-	plugin_vtable->print = NewNPP_PrintProc (NPP_Print);
-	plugin_vtable->event = NewNPP_HandleEventProc (NPP_HandleEvent);
-	plugin_vtable->urlnotify = NewNPP_URLNotifyProc (NPP_URLNotify);
+	plugin_vtable->newp = NPP_New;
+	plugin_vtable->destroy = NPP_Destroy;
+	plugin_vtable->setwindow = NPP_SetWindow;
+	plugin_vtable->newstream = NPP_NewStream;
+	plugin_vtable->destroystream = NPP_DestroyStream;
+	plugin_vtable->asfile = NPP_StreamAsFile;
+	plugin_vtable->writeready = NPP_WriteReady;
+	plugin_vtable->write = NPP_Write;
+	plugin_vtable->print = NPP_Print;
+	plugin_vtable->event = NPP_HandleEvent;
+	plugin_vtable->urlnotify = NPP_URLNotify;
 	plugin_vtable->javaClass = NULL;
-	plugin_vtable->getvalue = NewNPP_GetValueProc (NPP_GetValue);
-	plugin_vtable->setvalue = NewNPP_SetValueProc (NPP_SetValue);
+	plugin_vtable->getvalue = NPP_GetValue;
+	plugin_vtable->setvalue = NPP_SetValue;
 
   return NPERR_NO_ERROR;
 }
@@ -338,7 +338,7 @@ void on_error_cb (GbpPlayer *player, GError *error, const char *debug,
 
 void on_state_cb (GbpPlayer *player, gpointer user_data)
 {
-  struct StateClosure *state_closure = (struct StateClosure *) user_data;
+  StateClosure *state_closure = (StateClosure *) user_data;
   NPP instance = state_closure->instance;
   NPPGbpData *data = (NPPGbpData *) instance->pdata;
   NPVariant args[1];
