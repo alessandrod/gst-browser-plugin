@@ -26,14 +26,12 @@
 #include <string.h>
 
 
-void on_error_cb (GbpPlayer *player, GError *error, const char *debug,
-    gpointer user_data);
-void on_state_cb (GbpPlayer *player, gpointer user_data);
-
-NPError NP_GetValue (NPP instance, NPPVariable variable, void *ret_value);
-NPError NP_SetValue (NPP instance, NPNVariable variable, void *ret_value);
-
-NPNetscapeFuncs NPNFuncs;
+typedef struct _InvokeData {
+  NPP instance;
+  NPObject *object;
+  NPVariant *args;
+  int n_args;
+} InvokeData;
 
 /* FIXME: hack to deal with braindead state notification API */
 typedef struct _StateClosure {
@@ -41,7 +39,23 @@ typedef struct _StateClosure {
   const char *state;
 } StateClosure;
 
+
+void  invoke_data_free (InvokeData *invoke_data,
+    gboolean remove_from_pending_slist);
+void on_error_cb (GbpPlayer *player, GError *error, const char *debug,
+    gpointer user_data);
+void on_state_cb (GbpPlayer *player, gpointer user_data);
+
+NPError NP_GetValue (NPP instance, NPPVariable variable, void *ret_value);
+NPError NP_SetValue (NPP instance, NPNVariable variable, void *ret_value);
+
+
 StateClosure state1, state2, state3;
+
+NPNetscapeFuncs NPNFuncs;
+
+GStaticMutex pending_invoke_data_lock = G_STATIC_MUTEX_INIT;
+static GSList *pending_invoke_data;
 
 /* NPP vtable symbols */
 NPError
@@ -269,7 +283,15 @@ NP_GetEntryPoints(NPPluginFuncs *plugin_vtable)
 NPError
 NP_Shutdown ()
 {
+  GSList *walk;
   gbp_np_class_free ();
+
+  g_static_mutex_lock (&pending_invoke_data_lock);
+  for (walk = pending_invoke_data; walk != NULL; walk = walk->next)
+    invoke_data_free ((InvokeData *) walk->data, FALSE);
+  g_slist_free (pending_invoke_data);
+  pending_invoke_data = NULL;
+  g_static_mutex_unlock (&pending_invoke_data_lock);
 
   return NPERR_NO_ERROR;
 }
@@ -309,31 +331,95 @@ NPError NP_SetValue (NPP instance, NPNVariable variable, void *ret_value)
   return NPERR_GENERIC_ERROR;
 }
 
+InvokeData *
+invoke_data_new (NPP instance, NPObject *object, int n_args)
+{
+  InvokeData *invoke_data = (InvokeData *) NPN_MemAlloc (sizeof (InvokeData));
+
+  invoke_data->instance = instance;
+  invoke_data->object = NPN_RetainObject (object);
+  invoke_data->args = NPN_MemAlloc (sizeof (NPVariant) * n_args);
+  invoke_data->n_args = n_args;
+
+  g_static_mutex_lock (&pending_invoke_data_lock);
+  pending_invoke_data = g_slist_append (pending_invoke_data, invoke_data);
+  g_static_mutex_unlock (&pending_invoke_data_lock);
+
+  return invoke_data;
+}
+
+void
+invoke_data_free (InvokeData *invoke_data, gboolean remove_from_pending_slist)
+{
+#if 0
+  int i;
+#endif
+
+  /* FIXME: This calls PR_Free (jemalloc) and segfaults. Odd since
+   * NPN_MemAlloc does call PR_Malloc. Weird. */
+
+#if 0
+  for (i = 0; i < invoke_data->n_args; ++i ) {
+    NPN_ReleaseVariantValue (&invoke_data->args[i]);
+  }
+#endif
+
+  NPN_ReleaseObject (invoke_data->object);
+
+  NPN_MemFree (invoke_data->args);
+
+  if (remove_from_pending_slist) {
+    g_static_mutex_lock (&pending_invoke_data_lock);
+    pending_invoke_data = g_slist_remove (pending_invoke_data, invoke_data);
+    g_static_mutex_unlock (&pending_invoke_data_lock);
+  }
+
+  NPN_MemFree (invoke_data);
+}
+
+void invoke_data_cb (void *user_data)
+{
+  NPVariant result;
+  InvokeData *invoke_data = (InvokeData *) user_data;
+
+  NPN_InvokeDefault (invoke_data->instance, invoke_data->object,
+      invoke_data->args, invoke_data->n_args, &result);
+
+  /* just ignore the return value for now */
+  NPN_ReleaseVariantValue (&result);
+
+  invoke_data_free (invoke_data, TRUE);
+}
+
 void on_error_cb (GbpPlayer *player, GError *error, const char *debug,
     gpointer user_data)
 {
   NPP instance = (NPP) user_data;
   NPPGbpData *data = (NPPGbpData *) instance->pdata;
-  NPVariant args[2];
-  NPVariant result;
+  char *debug_copy;
+  char *message_copy;
+  InvokeData *invoke_data;
 
   g_return_if_fail (player != NULL);
   g_return_if_fail (error != NULL);
 
   g_printerr ("error %s: %s\n", error->message, debug);
 
-  /* call errorHandler (message, debug) */
-  STRINGZ_TO_NPVARIANT (error->message, args[0]);
-  STRINGZ_TO_NPVARIANT (debug, args[1]);
-
   if (data->errorHandler == NULL)
     return;
 
-  /* ta-daaaa */
-  NPN_InvokeDefault (instance, data->errorHandler, args, 2, &result);
+  invoke_data = invoke_data_new (instance, data->errorHandler, 2);
 
-  /* just ignore the return value for now */
-  NPN_ReleaseVariantValue (&result);
+  /* copy message and debug as they will be freed once we return */
+  message_copy = NPN_MemAlloc (strlen (error->message) + 1);
+  strcpy (message_copy, error->message);
+  debug_copy = NPN_MemAlloc (strlen (debug) + 1);
+  strcpy (debug_copy, debug);
+
+  STRINGZ_TO_NPVARIANT (message_copy, invoke_data->args[0]);
+  STRINGZ_TO_NPVARIANT (debug_copy, invoke_data->args[1]);
+
+  NPN_PluginThreadAsyncCall (instance, invoke_data_cb, invoke_data);
 }
 
 void on_state_cb (GbpPlayer *player, gpointer user_data)
@@ -341,8 +427,7 @@ void on_state_cb (GbpPlayer *player, gpointer user_data)
   StateClosure *state_closure = (StateClosure *) user_data;
   NPP instance = state_closure->instance;
   NPPGbpData *data = (NPPGbpData *) instance->pdata;
-  NPVariant args[1];
-  NPVariant result;
+  InvokeData *invoke_data;
 
   g_return_if_fail (player != NULL);
 
@@ -351,10 +436,10 @@ void on_state_cb (GbpPlayer *player, gpointer user_data)
   if (data->stateHandler == NULL)
     return;
 
-  STRINGZ_TO_NPVARIANT (state_closure->state, args[0]);
-  NPN_InvokeDefault (instance, data->stateHandler, args, 1, &result);
+  invoke_data = invoke_data_new (instance, data->stateHandler, 1);
 
-  /* just ignore the return value for now */
-  NPN_ReleaseVariantValue (&result);
+  STRINGZ_TO_NPVARIANT (state_closure->state, invoke_data->args[0]);
+
+  NPN_PluginThreadAsyncCall (instance, invoke_data_cb, invoke_data);
 }
 

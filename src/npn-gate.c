@@ -318,3 +318,10 @@ void NPN_SetException(NPObject* obj, const NPUTF8 *message)
 {
   NPNFuncs.setexception(obj, message);
 }
+
+
+void NPN_PluginThreadAsyncCall(NPP instance, void (*func)(void *),
+    void *userData)
+{
+  NPNFuncs.pluginthreadasynccall(instance, func, userData);
+}
