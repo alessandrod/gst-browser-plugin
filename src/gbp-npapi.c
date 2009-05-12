@@ -353,18 +353,14 @@ invoke_data_new (NPP instance, NPObject *object, int n_args)
 void
 invoke_data_free (InvokeData *invoke_data, gboolean remove_from_pending_slist)
 {
-#if 0
   int i;
-#endif
 
   /* FIXME: This calls PR_Free (jemalloc) and segfaults. Odd since
    * NPN_MemAlloc does call PR_Malloc. Weird. */
 
-#if 0
   for (i = 0; i < invoke_data->n_args; ++i ) {
     NPN_ReleaseVariantValue (&invoke_data->args[i]);
   }
-#endif
 
   NPN_ReleaseObject (invoke_data->object);
 
@@ -413,9 +409,9 @@ void on_error_cb (GbpPlayer *player, GError *error, const char *debug,
   invoke_data = invoke_data_new (instance, data->errorHandler, 2);
 
   /* copy message and debug as they will be freed once we return */
-  message_copy = NPN_MemAlloc (strlen (error->message) + 1);
+  message_copy = (char *) NPN_MemAlloc (strlen (error->message) + 1);
   strcpy (message_copy, error->message);
-  debug_copy = NPN_MemAlloc (strlen (debug) + 1);
+  debug_copy = (char *) NPN_MemAlloc (strlen (debug) + 1);
   strcpy (debug_copy, debug);
 
   STRINGZ_TO_NPVARIANT (message_copy, invoke_data->args[0]);
@@ -430,6 +426,7 @@ void on_state_cb (GbpPlayer *player, gpointer user_data)
   NPP instance = state_closure->instance;
   NPPGbpData *data = (NPPGbpData *) instance->pdata;
   InvokeData *invoke_data;
+  char *state_copy;
 
   g_return_if_fail (player != NULL);
 
@@ -440,7 +437,9 @@ void on_state_cb (GbpPlayer *player, gpointer user_data)
 
   invoke_data = invoke_data_new (instance, data->stateHandler, 1);
 
-  STRINGZ_TO_NPVARIANT (state_closure->state, invoke_data->args[0]);
+  state_copy = (char *) NPN_MemAlloc (strlen (state_closure->state) + 1);
+  strcpy (state_copy, state_closure->state);
+  STRINGZ_TO_NPVARIANT (state_copy, invoke_data->args[0]);
 
   NPN_PluginThreadAsyncCall (instance, invoke_data_cb, invoke_data);
 }
