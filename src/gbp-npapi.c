@@ -257,12 +257,14 @@ NP_Initialize (NPNetscapeFuncs *mozilla_vtable, NPPluginFuncs *plugin_vtable)
 {
 	if (mozilla_vtable == NULL)
 		return NPERR_INVALID_FUNCTABLE_ERROR;
-	
+
+#if 0
   if (mozilla_vtable->size < sizeof (NPNetscapeFuncs))
 		return NPERR_INVALID_FUNCTABLE_ERROR;
+#endif
 
-  memcpy (&NPNFuncs, mozilla_vtable, sizeof (NPNetscapeFuncs));
-  NPNFuncs.size = sizeof (NPNetscapeFuncs);
+  memcpy (&NPNFuncs, mozilla_vtable, mozilla_vtable->size);
+  NPNFuncs.size = mozilla_vtable->size;
 
   /* initialize the NPClass used for the npruntime js object */
   gbp_np_class_init ();
