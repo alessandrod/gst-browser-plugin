@@ -55,6 +55,7 @@ struct _GbpPlayerPrivate
   gboolean have_pipeline;
   GstPipeline *pipeline;
   GstBus *bus;
+  GstClockTime latency;
   gboolean disposed;
 };
 
@@ -64,6 +65,10 @@ static void gbp_player_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
 static void gbp_player_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
+static void playbin_element_added_cb (GstElement *playbin,
+    GstElement *element, GbpPlayer *player);
+static void uridecodebin_element_added_cb (GstElement *uridecodebin,
+    GstElement *element, GbpPlayer *player);
 static void on_bus_state_changed_cb (GstBus *bus, GstMessage *message,
     GbpPlayer *player);
 static void on_bus_eos_cb (GstBus *bus, GstMessage *message,
@@ -236,6 +241,10 @@ build_pipeline (GbpPlayer *player)
       "signal::sync-message::element", G_CALLBACK (on_bus_element_cb), player,
       NULL);
 
+  g_object_connect (player->priv->pipeline,
+      "signal::element-added", playbin_element_added_cb, player,
+      NULL);
+
   player->priv->have_pipeline = TRUE;
   return TRUE;
 }
@@ -287,6 +296,32 @@ gbp_player_stop (GbpPlayer *player)
 
   gst_element_set_state (GST_ELEMENT (player->priv->pipeline),
       GST_STATE_NULL);
+}
+
+static void
+playbin_element_added_cb (GstElement *playbin,
+    GstElement *element, GbpPlayer *player)
+{
+  if (g_str_has_prefix (gst_element_get_name (element), "uridecodebin")) {
+    g_object_connect (element,
+        "signal::element-added", uridecodebin_element_added_cb, player,
+        NULL);
+  }
+}
+
+static void
+uridecodebin_element_added_cb (GstElement *uridecodebin,
+    GstElement *element, GbpPlayer *player)
+{
+  GObjectClass *klass;
+
+  if (!strcmp (gst_element_get_name (element), "source")) {
+    klass = G_OBJECT_GET_CLASS (element);
+
+    if (g_object_class_find_property (klass, "latency")) {
+      g_object_set (element, "latency", player->priv->latency, NULL);
+    }
+  }
 }
 
 static void

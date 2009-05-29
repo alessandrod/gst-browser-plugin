@@ -12,6 +12,9 @@ nodist_libgst_browser_plugin_la_SOURCES = \
   gbp-marshal.c
 
 libgst_browser_plugin_la_CFLAGS = $(GST_CFLAGS) -Wall -Werror
+if OSX_BUILD
+libgst_browser_plugin_la_CFLAGS += -DXP_MACOSX
+endif
 libgst_browser_plugin_la_LIBADD = $(GST_LIBS) -lgstinterfaces-0.10
 libgst_browser_plugin_la_LDFLAGS = -avoid-version -no-undefined
 
