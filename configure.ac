@@ -1,5 +1,5 @@
 AC_PREREQ(2.52)
-AC_INIT(GStreamer-Browser-Plugin, 0.0.1)
+AC_INIT(GStreamer-Browser-Plugin, 0.10.0.1)
 AC_CANONICAL_TARGET
 AM_INIT_AUTOMAKE
 dnl can autoconf find the source ?
@@ -16,5 +16,7 @@ AM_CONDITIONAL([OSX_BUILD], [test x$target_vendor = xapple])
 AC_CONFIG_FILES(
 Makefile
 src/Makefile
+bundle/Makefile
+bundle/install.rdf
 )
 AC_OUTPUT
