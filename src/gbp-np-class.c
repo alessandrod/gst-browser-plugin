@@ -20,6 +20,7 @@
  * Boston, MA 02111-1307, USA.
  */
 #include "gbp-np-class.h"
+#include <string.h>
 
 GbpNPClass gbp_np_class;
 
@@ -283,4 +284,6 @@ gbp_np_class_free ()
   g_return_if_fail (klass->structVersion != 0);
 
   NPN_MemFree (method_identifiers);
+
+  memset (&gbp_np_class, 0, sizeof (GbpNPClass));
 }
