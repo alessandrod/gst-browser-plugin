@@ -104,7 +104,7 @@ NPP_New (NPMIMEType plugin_type, NPP instance, uint16_t mode,
   state1.instance = state2.instance = state3.instance = instance;
   state1.state = "PLAYING";
   state2.state = "PAUSED";
-  state2.state = "STOPPED";
+  state3.state = "STOPPED";
   g_object_connect (G_OBJECT (player),
       "signal::playing", G_CALLBACK (on_state_cb), &state1,
       "signal::paused", G_CALLBACK (on_state_cb), &state2,
