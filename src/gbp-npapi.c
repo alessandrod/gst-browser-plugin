@@ -113,6 +113,10 @@ NPP_New (NPMIMEType plugin_type, NPP instance, uint16_t mode,
 
   instance->pdata = pdata;
 
+  /* FIXME: set this to avoid the .so from being unloaded. GType breaks badly if
+   * we unload and reload types. */
+  NPN_SetValue (instance, NPPVpluginKeepLibraryInMemory, GINT_TO_POINTER (1));
+
   return NPERR_NO_ERROR;
 }
 
