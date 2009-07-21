@@ -294,6 +294,9 @@ gbp_player_stop (GbpPlayer *player)
 {
   g_return_if_fail (player != NULL);
 
+  if (player->priv->pipeline == NULL)
+    return;
+
   gst_element_set_state (GST_ELEMENT (player->priv->pipeline),
       GST_STATE_NULL);
 }
