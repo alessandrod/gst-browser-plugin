@@ -84,9 +84,9 @@ gbp_player_dispose (GObject *object)
   GbpPlayer *player = GBP_PLAYER (object);
 
   if (!player->priv->disposed) {
+    player->priv->disposed = TRUE;
     g_object_unref (player->priv->pipeline);
     g_object_unref (player->priv->bus);
-    player->priv->disposed = TRUE;
   }
 
   G_OBJECT_CLASS (gbp_player_parent_class)->dispose (object);
@@ -159,6 +159,7 @@ gbp_player_init (GbpPlayer *player)
 
   player->priv = priv = G_TYPE_INSTANCE_GET_PRIVATE (player,
       GBP_TYPE_PLAYER, GbpPlayerPrivate);
+  player->priv->latency = 2 * GST_SECOND;
 }
 
 static void
