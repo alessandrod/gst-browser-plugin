@@ -159,7 +159,7 @@ gbp_player_init (GbpPlayer *player)
 
   player->priv = priv = G_TYPE_INSTANCE_GET_PRIVATE (player,
       GBP_TYPE_PLAYER, GbpPlayerPrivate);
-  player->priv->latency = 2 * GST_SECOND;
+  player->priv->latency = 3000;
 }
 
 static void
