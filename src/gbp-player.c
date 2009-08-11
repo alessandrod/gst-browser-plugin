@@ -85,8 +85,10 @@ gbp_player_dispose (GObject *object)
 
   if (!player->priv->disposed) {
     player->priv->disposed = TRUE;
-    g_object_unref (player->priv->pipeline);
-    g_object_unref (player->priv->bus);
+    if (player->priv->pipeline != NULL) {
+      g_object_unref (player->priv->pipeline);
+      g_object_unref (player->priv->bus);
+    }
   }
 
   G_OBJECT_CLASS (gbp_player_parent_class)->dispose (object);
