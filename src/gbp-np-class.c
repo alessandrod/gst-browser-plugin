@@ -30,6 +30,20 @@ typedef struct
   NPInvokeFunctionPtr method;
 } GbpNPClassMethod;
 
+typedef enum
+{
+  PLAYBACK_CMD_STOP,
+  PLAYBACK_CMD_PAUSE,
+  PLAYBACK_CMD_START,
+  PLAYBACK_CMD_QUIT,
+} PlaybackCommandCode;
+
+typedef struct
+{
+  GbpPlayer *player;
+  PlaybackCommandCode code;
+} PlaybackCommand;
+
 static bool gbp_np_class_method_start (NPObject *obj, NPIdentifier name,
     const NPVariant *args, uint32_t argCount, NPVariant *result);
 static bool gbp_np_class_method_stop (NPObject *obj, NPIdentifier name,
@@ -42,6 +56,13 @@ static bool gbp_np_class_method_set_error_handler (NPObject *obj,
 static bool gbp_np_class_method_set_state_handler (NPObject *obj,
     NPIdentifier name, const NPVariant *args, uint32_t argCount,
     NPVariant *result);
+
+PlaybackCommand *playback_command_new (GbpPlayer *player, PlaybackCommandCode code);
+void playback_command_free (PlaybackCommand *command);
+void playback_command_push (GbpPlayer *player, PlaybackCommandCode code);
+gpointer playback_thread_func (gpointer data);
+void gbp_np_class_start_playback_thread ();
+void gbp_np_class_stop_playback_thread ();
 
 /* cached method ids, allocated by gbp_np_class_init and destroyed by
  * gbp_np_class_free */
@@ -153,7 +174,7 @@ gbp_np_class_method_start (NPObject *npobj, NPIdentifier name,
   g_return_val_if_fail (result != NULL, FALSE);
 
   NPPGbpData *data = (NPPGbpData *) obj->instance->pdata;
-  gbp_player_start (data->player);
+  playback_command_push (data->player, PLAYBACK_CMD_START);
 
   VOID_TO_NPVARIANT (*result);
   return TRUE;
@@ -171,7 +192,7 @@ gbp_np_class_method_stop (NPObject *npobj, NPIdentifier name,
   g_return_val_if_fail (result != NULL, FALSE);
 
   NPPGbpData *data = (NPPGbpData *) obj->instance->pdata;
-  gbp_player_stop (data->player);
+  playback_command_push (data->player, PLAYBACK_CMD_STOP);
 
   VOID_TO_NPVARIANT (*result);
   return TRUE;
@@ -189,7 +210,7 @@ gbp_np_class_method_pause (NPObject *npobj, NPIdentifier name,
   g_return_val_if_fail (result != NULL, FALSE);
 
   NPPGbpData *data = (NPPGbpData *) obj->instance->pdata;
-  gbp_player_pause (data->player);
+  playback_command_push (data->player, PLAYBACK_CMD_PAUSE);
 
   VOID_TO_NPVARIANT (*result);
   return TRUE;
@@ -274,6 +295,8 @@ gbp_np_class_init ()
   NPN_GetStringIdentifiers (method_names, methods_num, method_identifiers);
 
   NPN_MemFree (method_names);
+
+  gbp_np_class_start_playback_thread ();
 }
 
 void
@@ -283,7 +306,97 @@ gbp_np_class_free ()
 
   g_return_if_fail (klass->structVersion != 0);
 
+  gbp_np_class_stop_playback_thread ();
+
   NPN_MemFree (method_identifiers);
 
   memset (&gbp_np_class, 0, sizeof (GbpNPClass));
+
+}
+
+void
+gbp_np_class_start_playback_thread ()
+{
+  g_return_if_fail (gbp_np_class.playback_thread == NULL);
+
+  gbp_np_class.playback_queue = g_async_queue_new ();
+  gbp_np_class.playback_thread = g_thread_create (playback_thread_func,
+      NULL, TRUE, NULL);
+}
+
+void
+gbp_np_class_stop_playback_thread ()
+{
+  g_return_if_fail (gbp_np_class.playback_thread != NULL);
+
+  playback_command_push (NULL, PLAYBACK_CMD_QUIT);
+  g_thread_join (gbp_np_class.playback_thread);
+  gbp_np_class.playback_thread = NULL;
+  g_async_queue_unref (gbp_np_class.playback_queue);
+  gbp_np_class.playback_queue = NULL;
+}
+
+PlaybackCommand *
+playback_command_new (GbpPlayer *player, PlaybackCommandCode code)
+{
+  PlaybackCommand *command = g_new0 (PlaybackCommand, 1);
+  if (player)
+    command->player = g_object_ref (player);
+  command->code = code;
+
+  return command;
+}
+
+void
+playback_command_free (PlaybackCommand *command)
+{
+  g_return_if_fail (command != NULL);
+
+  if (command->player)
+    g_object_unref (command->player);
+  g_free (command);
+}
+
+void
+playback_command_push (GbpPlayer *player, PlaybackCommandCode code)
+{
+  PlaybackCommand *command = playback_command_new (player, code);
+  g_async_queue_push (gbp_np_class.playback_queue, command);
+}
+
+gpointer
+playback_thread_func (gpointer data)
+{
+  PlaybackCommand *command;
+  gboolean exit = FALSE;
+
+  while (exit == FALSE) {
+    command = g_async_queue_pop (gbp_np_class.playback_queue);
+
+    switch (command->code) {
+      case PLAYBACK_CMD_STOP:
+        gbp_player_stop (command->player);
+        break;
+
+      case PLAYBACK_CMD_PAUSE:
+        gbp_player_pause (command->player);
+        break;
+
+      case PLAYBACK_CMD_START:
+        gbp_player_start (command->player);
+        break;
+
+      case PLAYBACK_CMD_QUIT:
+        exit = TRUE;
+        break;
+
+      default:
+        g_warn_if_reached ();
+    }
+
+    playback_command_free (command);
+    command = NULL;
+  }
+
+  return NULL;
 }
