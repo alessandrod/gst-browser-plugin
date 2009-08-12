@@ -31,8 +31,10 @@ G_BEGIN_DECLS
 typedef struct _GbpNPClass
 {
   NPClass klass;
+#ifdef PLAYBACK_THREAD_SINGLE
   GThread *playback_thread;
   GAsyncQueue *playback_queue;
+#endif
 } GbpNPClass;
 
 typedef struct _GbpNPObject
@@ -40,14 +42,22 @@ typedef struct _GbpNPObject
   NPObject object;
   NPP instance;
 
+#ifndef PLAYBACK_THREAD_SINGLE
+  GThread *playback_thread;
+#endif
 } GbpNPObject;
 
 extern GbpNPClass gbp_np_class;
 
 void gbp_np_class_init ();
 void gbp_np_class_free ();
+#ifndef PLAYBACK_THREAD_SINGLE
+void gbp_np_class_start_object_playback_thread(NPPGbpData *data);
+void gbp_np_class_stop_object_playback_thread(NPPGbpData *data);
+#else
 void gbp_np_class_start_playback_thread();
 void gbp_np_class_stop_playback_thread();
+#endif
 
 G_END_DECLS
 

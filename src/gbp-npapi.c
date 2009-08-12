@@ -98,6 +98,10 @@ NPP_New (NPMIMEType plugin_type, NPP instance, uint16_t mode,
   pdata->errorHandler = NULL;
   pdata->stateHandler = NULL;
 
+#ifndef PLAYBACK_THREAD_SINGLE
+  gbp_np_class_start_object_playback_thread (pdata);
+#endif
+
   g_object_connect (G_OBJECT (player), "signal::error",
       G_CALLBACK (on_error_cb), instance, NULL);
 
@@ -128,7 +132,12 @@ NPP_Destroy (NPP instance, NPSavedData **saved_data)
 
   NPPGbpData *data = (NPPGbpData *) instance->pdata;
 
+#ifndef PLAYBACK_THREAD_SINGLE
+  gbp_np_class_stop_object_playback_thread (data);
+#else
   gbp_player_stop (data->player);
+#endif
+
   g_object_unref (data->player);
 
   if (data->errorHandler != NULL)

@@ -36,6 +36,10 @@ typedef struct _NPPGbpData
   GbpPlayer *player;
   NPObject *errorHandler;
   NPObject *stateHandler;
+#ifndef PLAYBACK_THREAD_SINGLE
+  GThread *playback_thread;
+  GAsyncQueue *playback_queue;
+#endif
 } NPPGbpData;
 
 char *NP_GetMIMEDescription();
