@@ -394,7 +394,7 @@ playback_command_free (PlaybackCommand *command)
     g_object_unref (command->player);
 
   if (command->free_data)
-    NPN_MemFree (command->data);
+    npp_gbp_data_free (command->data);
   command->data = NULL;
 
   g_free (command);

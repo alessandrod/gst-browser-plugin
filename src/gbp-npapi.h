@@ -48,6 +48,7 @@ NPError NP_GetEntryPoints (NPPluginFuncs *plugin_vtable);
 NPError NP_Shutdown ();
 NPError NP_GetValue (NPP instance, NPPVariable variable, void *value);
 NPError NP_SetValue (NPP instance, NPNVariable variable, void *ret_value);
+void npp_gbp_data_free (NPPGbpData *data);
 
 G_END_DECLS
 

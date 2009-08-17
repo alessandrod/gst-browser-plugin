@@ -144,17 +144,8 @@ NPP_Destroy (NPP instance, NPSavedData **saved_data)
 
   g_object_unref (data->player);
 
-  if (free_data) {
-    if (data->errorHandler != NULL)
-      NPN_ReleaseObject (data->errorHandler);
-    data->errorHandler = NULL;
-
-    if (data->stateHandler != NULL)
-      NPN_ReleaseObject (data->stateHandler);
-    data->stateHandler = NULL;
-
-    NPN_MemFree (data);
-  }
+  if (free_data)
+    npp_gbp_data_free (data);
 
   return NPERR_NO_ERROR;
 }
@@ -465,3 +456,16 @@ void on_state_cb (GbpPlayer *player, gpointer user_data)
   NPN_PluginThreadAsyncCall (instance, invoke_data_cb, invoke_data);
 }
 
+void
+npp_gbp_data_free (NPPGbpData *data)
+{
+  if (data->errorHandler != NULL)
+    NPN_ReleaseObject (data->errorHandler);
+  data->errorHandler = NULL;
+
+  if (data->stateHandler != NULL)
+    NPN_ReleaseObject (data->stateHandler);
+  data->stateHandler = NULL;
+
+  NPN_MemFree (data);
+}
