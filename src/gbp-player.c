@@ -302,6 +302,8 @@ gbp_player_stop (GbpPlayer *player)
 
   gst_element_set_state (GST_ELEMENT (player->priv->pipeline),
       GST_STATE_NULL);
+  gst_element_get_state (GST_ELEMENT (player->priv->pipeline),
+      NULL, NULL, GST_CLOCK_TIME_NONE);
 }
 
 static void
