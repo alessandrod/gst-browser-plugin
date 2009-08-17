@@ -97,6 +97,7 @@ NPP_New (NPMIMEType plugin_type, NPP instance, uint16_t mode,
   pdata->player = player;
   pdata->errorHandler = NULL;
   pdata->stateHandler = NULL;
+  pdata->state = g_strdup ("STOPPED");
 
 #ifndef PLAYBACK_THREAD_SINGLE
   gbp_np_class_start_object_playback_thread (pdata);
@@ -444,6 +445,11 @@ void on_state_cb (GbpPlayer *player, gpointer user_data)
 
   g_print ("new state %s\n", state_closure->state);
 
+  if (data->state != NULL)
+    g_free (data->state);
+
+  data->state = g_strdup (state_closure->state);
+
   if (data->stateHandler == NULL)
     return;
 
@@ -466,6 +472,10 @@ npp_gbp_data_free (NPPGbpData *data)
   if (data->stateHandler != NULL)
     NPN_ReleaseObject (data->stateHandler);
   data->stateHandler = NULL;
+
+  if (data->state)
+    g_free (data->state);
+  data->state = NULL;
 
   NPN_MemFree (data);
 }

@@ -30,6 +30,14 @@ typedef struct
   NPInvokeFunctionPtr method;
 } GbpNPClassMethod;
 
+typedef struct
+{
+  const char *name;
+  NPGetPropertyFunctionPtr get;
+  NPSetPropertyFunctionPtr set;
+  NPRemovePropertyFunctionPtr remove;
+} GbpNPClassProperty;
+
 typedef enum
 {
   PLAYBACK_CMD_STOP,
@@ -59,6 +67,15 @@ static bool gbp_np_class_method_set_state_handler (NPObject *obj,
     NPIdentifier name, const NPVariant *args, uint32_t argCount,
     NPVariant *result);
 
+static bool gbp_np_class_property_generic_get (NPObject *obj,
+    NPIdentifier name, NPVariant *result);
+static bool gbp_np_class_property_generic_set (NPObject *obj,
+    NPIdentifier name, const NPVariant *value);
+static bool gbp_np_class_property_generic_remove (NPObject *obj,
+    NPIdentifier name);
+static bool gbp_np_class_property_state_get (NPObject *obj,
+    NPIdentifier name, NPVariant *result);
+
 PlaybackCommand *playback_command_new (PlaybackCommandCode code,
     NPPGbpData *data, gboolean free_data);
 void playback_command_free (PlaybackCommand *command);
@@ -73,15 +90,23 @@ static gint compare_commands(gconstpointer a, gconstpointer b, gpointer user_dat
  * gbp_np_class_free */
 static NPIdentifier *method_identifiers;
 static guint methods_num;
+static NPIdentifier *property_identifiers;
+static guint properties_num;
 static GAsyncQueue *joinable_threads;
 
-GbpNPClassMethod gbp_np_class_methods[] = {
+static GbpNPClassMethod gbp_np_class_methods[] = {
   {"start", gbp_np_class_method_start},
   {"stop", gbp_np_class_method_stop},
   {"pause", gbp_np_class_method_pause},
   {"setErrorHandler", gbp_np_class_method_set_error_handler},
   {"setStateHandler", gbp_np_class_method_set_state_handler},
 
+  /* sentinel */
+  {NULL, NULL}
+};
+
+static GbpNPClassProperty gbp_np_class_properties[] = {
+  {"state", gbp_np_class_property_state_get, NULL, NULL},
   /* sentinel */
   {NULL, NULL}
 };
@@ -138,12 +163,26 @@ gbp_np_class_invoke (NPObject *obj, NPIdentifier name,
 static bool
 gbp_np_class_has_property (NPObject *obj, NPIdentifier name)
 {
+  guint i;
+
+  for (i = 0; i < properties_num; ++i) {
+    if (name == property_identifiers[i])
+      return TRUE;
+  }
+
   return FALSE;
 }
 
 static bool
 gbp_np_class_get_property (NPObject *obj, NPIdentifier name, NPVariant *result)
 {
+  gint i;
+
+  for (i = 0; i < properties_num; ++i) {
+    if (name == property_identifiers[i])
+      return gbp_np_class_properties[i].get(obj, name, result);
+  }
+
   NPN_SetException (obj, "No property with this name exists.");
   return FALSE;
 }
@@ -151,6 +190,13 @@ gbp_np_class_get_property (NPObject *obj, NPIdentifier name, NPVariant *result)
 static bool
 gbp_np_class_set_property (NPObject *obj, NPIdentifier name, const NPVariant *value)
 {
+  gint i;
+
+  for (i = 0; i < properties_num; ++i) {
+    if (name == property_identifiers[i])
+      return gbp_np_class_properties[i].set(obj, name, value);
+  }
+
   NPN_SetException (obj, "No property with this name exists.");
   return FALSE;
 }
@@ -158,6 +204,13 @@ gbp_np_class_set_property (NPObject *obj, NPIdentifier name, const NPVariant *va
 static bool
 gbp_np_class_remove_property (NPObject *obj, NPIdentifier name)
 {
+  gint i;
+
+  for (i = 0; i < properties_num; ++i) {
+    if (name == property_identifiers[i])
+      return gbp_np_class_properties[i].remove(obj, name);
+  }
+
   NPN_SetException (obj, "No property with this name exists.");
   return FALSE;
 }
@@ -260,14 +313,55 @@ gbp_np_class_method_set_state_handler (NPObject *npobj, NPIdentifier name,
 
   VOID_TO_NPVARIANT (*result);
   return TRUE;
+}
 
+static bool
+gbp_np_class_property_generic_get (NPObject *obj,
+    NPIdentifier name, NPVariant *result)
+{
+  NPN_SetException (obj, "Can't get property value");
+  return FALSE;
+}
+
+static bool
+gbp_np_class_property_generic_set (NPObject *obj,
+    NPIdentifier name, const NPVariant *result)
+{
+  NPN_SetException (obj, "Can't set property value");
+  return FALSE;
+}
+
+static bool
+gbp_np_class_property_generic_remove (NPObject *obj,
+    NPIdentifier name)
+{
+  NPN_SetException (obj, "Can't remove property");
+  return FALSE;
+}
+
+static bool gbp_np_class_property_state_get (NPObject *npobj,
+    NPIdentifier name, NPVariant *result)
+{
+  char *state_copy;
+  GbpNPObject *obj = (GbpNPObject *) npobj;
+
+  g_return_val_if_fail (obj != NULL, FALSE);
+  g_return_val_if_fail (result != NULL, FALSE);
+
+  NPPGbpData *data = (NPPGbpData *) obj->instance->pdata;
+
+  state_copy = (char *) NPN_MemAlloc (strlen (data->state) + 1);
+  strcpy (state_copy, data->state);
+
+  STRINGZ_TO_NPVARIANT (state_copy, *result);
+  return TRUE;
 }
 
 void
 gbp_np_class_init ()
 {
   int i;
-  const char **method_names;
+  const char **method_names, **property_names;
 
   NPClass *klass = (NPClass *) &gbp_np_class;
 
@@ -296,11 +390,33 @@ gbp_np_class_init ()
   method_names = (const char **) NPN_MemAlloc (sizeof (char *) * methods_num);
   for (i = 0; gbp_np_class_methods[i].name != NULL; ++i)
     method_names[i] = gbp_np_class_methods[i].name;
+  
+  /* setup property identifiers */
+  properties_num = \
+      (sizeof (gbp_np_class_properties) / sizeof (GbpNPClassProperty)) - 1;
+
+  /* alloc property_identifiers */
+  property_identifiers = \
+      (NPIdentifier *) NPN_MemAlloc (sizeof (NPIdentifier) * properties_num);
+
+  property_names = (const char **) NPN_MemAlloc (sizeof (char *) * properties_num);
+  for (i = 0; gbp_np_class_properties[i].name != NULL; ++i) {
+    property_names[i] = gbp_np_class_properties[i].name;
+    if (gbp_np_class_properties[i].get == NULL)
+      gbp_np_class_properties[i].get = gbp_np_class_property_generic_get;
+    if (gbp_np_class_properties[i].set == NULL)
+      gbp_np_class_properties[i].set = gbp_np_class_property_generic_set;
+    if (gbp_np_class_properties[i].remove == NULL)
+      gbp_np_class_properties[i].remove = gbp_np_class_property_generic_remove;
+  }
 
   /* fill method_identifiers */
   NPN_GetStringIdentifiers (method_names, methods_num, method_identifiers);
+  /* fill property identifiers */
+  NPN_GetStringIdentifiers (property_names, properties_num, property_identifiers);
 
   NPN_MemFree (method_names);
+  NPN_MemFree (property_names);
 
   joinable_threads = g_async_queue_new ();
 

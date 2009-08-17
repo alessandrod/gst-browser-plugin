@@ -40,6 +40,7 @@ typedef struct _NPPGbpData
   GThread *playback_thread;
   GAsyncQueue *playback_queue;
 #endif
+  char *state;
 } NPPGbpData;
 
 char *NP_GetMIMEDescription();
