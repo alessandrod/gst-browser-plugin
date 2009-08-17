@@ -63,6 +63,7 @@ void playback_command_push (NPPGbpData *data, PlaybackCommandCode code);
 gpointer playback_thread_func (gpointer data);
 void gbp_np_class_start_playback_thread ();
 void gbp_np_class_stop_playback_thread ();
+static gint compare_commands(gconstpointer a, gconstpointer b, gpointer user_data);
 
 /* cached method ids, allocated by gbp_np_class_init and destroyed by
  * gbp_np_class_free */
@@ -328,7 +329,6 @@ void gbp_np_class_start_object_playback_thread(NPPGbpData *data)
 
 void gbp_np_class_stop_object_playback_thread(NPPGbpData *data)
 {
-  playback_command_push (data, PLAYBACK_CMD_STOP);
   playback_command_push (data, PLAYBACK_CMD_QUIT);
   g_thread_join (data->playback_thread);
   data->playback_thread = NULL;
@@ -401,7 +401,7 @@ playback_command_push (NPPGbpData *data, PlaybackCommandCode code)
     player = data->player;
 
   PlaybackCommand *command = playback_command_new (player, code);
-  g_async_queue_push (playback_queue, command);
+  g_async_queue_push_sorted (playback_queue, command, compare_commands, NULL);
 }
 
 gpointer
@@ -414,6 +414,8 @@ playback_thread_func (gpointer data)
   while (exit == FALSE) {
     command = g_async_queue_pop (queue);
 
+    g_print ("player %p processing command %d\n",
+        command->player, command->code);
     switch (command->code) {
       case PLAYBACK_CMD_STOP:
         gbp_player_stop (command->player);
@@ -428,6 +430,7 @@ playback_thread_func (gpointer data)
         break;
 
       case PLAYBACK_CMD_QUIT:
+        gbp_player_stop (command->player);
         exit = TRUE;
         break;
 
@@ -439,5 +442,27 @@ playback_thread_func (gpointer data)
     command = NULL;
   }
 
+  while (g_async_queue_length (queue)) {
+    command = g_async_queue_pop (queue);
+    playback_command_free (command);
+  }
+
   return NULL;
+}
+
+static gint
+compare_commands(gconstpointer a, gconstpointer b, gpointer user_data)
+{
+  gint res;
+  PlaybackCommand *cmd1 = (PlaybackCommand *) a;
+  PlaybackCommand *cmd2 = (PlaybackCommand *) b;
+
+  if (cmd1->code == PLAYBACK_CMD_QUIT)
+    res = -1;
+  else if (cmd2->code == PLAYBACK_CMD_QUIT)
+    res = 1;
+  else
+    res = 0;
+
+  return res;
 }
