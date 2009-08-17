@@ -127,26 +127,34 @@ NPP_New (NPMIMEType plugin_type, NPP instance, uint16_t mode,
 NPError
 NPP_Destroy (NPP instance, NPSavedData **saved_data)
 {
+  gboolean free_data;
+
   if (!instance)
     return NPERR_INVALID_INSTANCE_ERROR;
 
   NPPGbpData *data = (NPPGbpData *) instance->pdata;
 
 #ifndef PLAYBACK_THREAD_SINGLE
+  free_data = FALSE;
   gbp_np_class_stop_object_playback_thread (data);
 #else
+  free_data = TRUE;
   gbp_player_stop (data->player);
 #endif
 
   g_object_unref (data->player);
 
-  if (data->errorHandler != NULL)
-    NPN_ReleaseObject (data->errorHandler);
+  if (free_data) {
+    if (data->errorHandler != NULL)
+      NPN_ReleaseObject (data->errorHandler);
+    data->errorHandler = NULL;
 
-  if (data->stateHandler != NULL)
-    NPN_ReleaseObject (data->stateHandler);
+    if (data->stateHandler != NULL)
+      NPN_ReleaseObject (data->stateHandler);
+    data->stateHandler = NULL;
 
-  NPN_MemFree (data);
+    NPN_MemFree (data);
+  }
 
   return NPERR_NO_ERROR;
 }
