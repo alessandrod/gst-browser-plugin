@@ -327,6 +327,9 @@ gbp_np_class_free ()
     g_thread_join (thread);
   }
 
+  g_async_queue_unref (joinable_threads);
+  joinable_threads = NULL;
+
   NPN_MemFree (method_identifiers);
 
   memset (&gbp_np_class, 0, sizeof (GbpNPClass));
