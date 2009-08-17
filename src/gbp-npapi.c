@@ -134,6 +134,8 @@ NPP_Destroy (NPP instance, NPSavedData **saved_data)
 
   NPPGbpData *data = (NPPGbpData *) instance->pdata;
 
+  g_object_unref (data->player);
+
 #ifndef PLAYBACK_THREAD_SINGLE
   free_data = FALSE;
   gbp_np_class_stop_object_playback_thread (data);
@@ -141,8 +143,6 @@ NPP_Destroy (NPP instance, NPSavedData **saved_data)
   free_data = TRUE;
   gbp_player_stop (data->player);
 #endif
-
-  g_object_unref (data->player);
 
   if (free_data)
     npp_gbp_data_free (data);
