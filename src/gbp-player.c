@@ -67,6 +67,8 @@ static void gbp_player_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
 static void playbin_element_added_cb (GstElement *playbin,
     GstElement *element, GbpPlayer *player);
+static void autovideosink_element_added_cb (GstElement *autovideosink,
+    GstElement *element, GbpPlayer *player);
 static void uridecodebin_element_added_cb (GstElement *uridecodebin,
     GstElement *element, GbpPlayer *player);
 static void on_bus_state_changed_cb (GstBus *bus, GstMessage *message,
@@ -222,6 +224,8 @@ gbp_player_set_property (GObject * object, guint prop_id,
 static gboolean
 build_pipeline (GbpPlayer *player)
 {
+  GstElement *autovideosink;
+
   player->priv->pipeline = GST_PIPELINE (gst_element_factory_make ("playbin2", NULL));
   if (player->priv->pipeline == NULL) {
     /* FIXME: create our domain */
@@ -235,6 +239,24 @@ build_pipeline (GbpPlayer *player)
     return FALSE;
   }
 
+  autovideosink = gst_element_factory_make("autovideosink", NULL);
+  if (autovideosink == NULL) {
+    GError *error = g_error_new (GST_LIBRARY_ERROR,
+        GST_LIBRARY_ERROR_FAILED, "couldn't find autovideosink");
+
+    g_signal_emit (player, player_signals[SIGNAL_ERROR], 0,
+        error, "more debug than that?");
+
+    g_error_free (error);
+
+    g_object_unref (player->priv->pipeline);
+    player->priv->pipeline = NULL;
+
+    return FALSE;
+  }
+
+  g_object_set (G_OBJECT (player->priv->pipeline), "video-sink", autovideosink, NULL);
+  
   player->priv->bus = gst_pipeline_get_bus (player->priv->pipeline);
   gst_bus_enable_sync_message_emission (player->priv->bus);
   g_object_connect (player->priv->bus,
@@ -246,6 +268,10 @@ build_pipeline (GbpPlayer *player)
 
   g_object_connect (player->priv->pipeline,
       "signal::element-added", playbin_element_added_cb, player,
+      NULL);
+
+  g_object_connect (autovideosink,
+      "signal::element-added", autovideosink_element_added_cb, player,
       NULL);
 
   player->priv->have_pipeline = TRUE;
@@ -315,6 +341,19 @@ playbin_element_added_cb (GstElement *playbin,
         "signal::element-added", uridecodebin_element_added_cb, player,
         NULL);
   }
+}
+
+static void
+autovideosink_element_added_cb (GstElement *autovideosink,
+    GstElement *element, GbpPlayer *player)
+{
+  GObjectClass *klass;
+
+  klass = G_OBJECT_GET_CLASS (element);
+  if (!g_object_class_find_property (klass, "double-buffer"))
+    return;
+  
+  g_object_set (G_OBJECT (element), "double-buffer", FALSE, NULL);
 }
 
 static void
