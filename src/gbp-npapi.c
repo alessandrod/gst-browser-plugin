@@ -33,7 +33,6 @@ typedef struct _InvokeData {
   int n_args;
 } InvokeData;
 
-/* FIXME: hack to deal with braindead state notification API */
 typedef struct _StateClosure {
   NPP instance;
   const char *state;
@@ -50,8 +49,6 @@ NPError NP_GetValue (NPP instance, NPPVariable variable, void *ret_value);
 NPError NP_SetValue (NPP instance, NPNVariable variable, void *ret_value);
 
 
-StateClosure state1, state2, state3;
-
 NPNetscapeFuncs NPNFuncs;
 
 GStaticMutex pending_invoke_data_lock = G_STATIC_MUTEX_INIT;
@@ -67,6 +64,7 @@ NPP_New (NPMIMEType plugin_type, NPP instance, uint16_t mode,
   char *uri = NULL;
   guint width = 0, height = 0;
   int i;
+  StateClosure *state1, *state2, *state3;
 
   if (!instance)
     return NPERR_INVALID_INSTANCE_ERROR;
@@ -106,15 +104,24 @@ NPP_New (NPMIMEType plugin_type, NPP instance, uint16_t mode,
   g_object_connect (G_OBJECT (player), "signal::error",
       G_CALLBACK (on_error_cb), instance, NULL);
 
-  state1.instance = state2.instance = state3.instance = instance;
-  state1.state = "PLAYING";
-  state2.state = "PAUSED";
-  state3.state = "STOPPED";
-  g_object_connect (G_OBJECT (player),
-      "signal::playing", G_CALLBACK (on_state_cb), &state1,
-      "signal::paused", G_CALLBACK (on_state_cb), &state2,
-      "signal::stopped", G_CALLBACK (on_state_cb), &state3,
-      NULL);
+  state1 = g_new(StateClosure, 1);
+  state2 = g_new(StateClosure, 1);
+  state3 = g_new(StateClosure, 1);
+
+  state1->instance = instance;
+  state2->instance = instance;
+  state3->instance = instance;
+
+  state1->state = "PLAYING";
+  state2->state = "PAUSED";
+  state3->state = "STOPPED";
+
+  g_signal_connect_data (player, "playing",
+      G_CALLBACK(on_state_cb), state1, (GClosureNotify) g_free, 0);
+  g_signal_connect_data (player, "paused",
+      G_CALLBACK(on_state_cb), state2, (GClosureNotify) g_free, 0);
+  g_signal_connect_data (player, "stopped",
+      G_CALLBACK(on_state_cb), state3, (GClosureNotify) g_free, 0);
 
   instance->pdata = pdata;
 
@@ -452,6 +459,9 @@ void on_state_cb (GbpPlayer *player, gpointer user_data)
 
   if (data->stateHandler == NULL)
     return;
+  
+  g_print ("invoking state handler %p on instance %p\n",
+      data->stateHandler, data);
 
   invoke_data = invoke_data_new (instance, data->stateHandler, 1);
 

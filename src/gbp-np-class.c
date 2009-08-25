@@ -311,6 +311,10 @@ gbp_np_class_method_set_state_handler (NPObject *npobj, NPIdentifier name,
   NPPGbpData *data = (NPPGbpData *) obj->instance->pdata;
   data->stateHandler = NPN_RetainObject(args[0].value.objectValue);
 
+  g_print ("set state handler %p on instance %p\n",
+      data->stateHandler, data);
+      
+
   VOID_TO_NPVARIANT (*result);
   return TRUE;
 }
