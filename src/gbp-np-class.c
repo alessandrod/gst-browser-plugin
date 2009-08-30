@@ -75,6 +75,10 @@ static bool gbp_np_class_property_generic_remove (NPObject *obj,
     NPIdentifier name);
 static bool gbp_np_class_property_state_get (NPObject *obj,
     NPIdentifier name, NPVariant *result);
+static bool gbp_np_class_property_uri_get (NPObject *obj,
+    NPIdentifier name, NPVariant *result);
+static bool gbp_np_class_property_uri_set (NPObject *obj,
+    NPIdentifier name, const NPVariant *value);
 
 PlaybackCommand *playback_command_new (PlaybackCommandCode code,
     NPPGbpData *data, gboolean free_data);
@@ -107,6 +111,7 @@ static GbpNPClassMethod gbp_np_class_methods[] = {
 
 static GbpNPClassProperty gbp_np_class_properties[] = {
   {"state", gbp_np_class_property_state_get, NULL, NULL},
+  {"uri", gbp_np_class_property_uri_get, gbp_np_class_property_uri_set, NULL},
   /* sentinel */
   {NULL, NULL}
 };
@@ -358,6 +363,47 @@ static bool gbp_np_class_property_state_get (NPObject *npobj,
   strcpy (state_copy, data->state);
 
   STRINGZ_TO_NPVARIANT (state_copy, *result);
+  return TRUE;
+}
+
+static bool gbp_np_class_property_uri_get (NPObject *npobj,
+    NPIdentifier name, NPVariant *result)
+{
+  GbpNPObject *obj = (GbpNPObject *) npobj;
+  char *uri;
+  char *uri_copy;
+
+  g_return_val_if_fail (obj != NULL, FALSE);
+  g_return_val_if_fail (result != NULL, FALSE);
+
+  NPPGbpData *data = (NPPGbpData *) obj->instance->pdata;
+
+  g_object_get (data->player, "uri", &uri, NULL);
+
+  uri_copy = (char *) NPN_MemAlloc (strlen (uri) + 1);
+  strcpy (uri_copy, uri);
+
+  g_free (uri);
+
+  STRINGZ_TO_NPVARIANT (uri_copy, *result);
+  return TRUE;
+}
+
+static bool gbp_np_class_property_uri_set (NPObject *npobj,
+    NPIdentifier name, const NPVariant *value)
+{
+  GbpNPObject *obj = (GbpNPObject *) npobj;
+  const char *uri;
+
+  g_return_val_if_fail (obj != NULL, FALSE);
+  g_return_val_if_fail (value != NULL, FALSE);
+
+  uri = NPVARIANT_TO_STRING (*value).UTF8Characters;
+
+  NPPGbpData *data = (NPPGbpData *) obj->instance->pdata;
+
+  g_object_set (data->player, "uri", uri, NULL);
+
   return TRUE;
 }
 
