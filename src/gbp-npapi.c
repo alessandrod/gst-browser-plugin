@@ -104,9 +104,9 @@ NPP_New (NPMIMEType plugin_type, NPP instance, uint16_t mode,
   g_object_connect (G_OBJECT (player), "signal::error",
       G_CALLBACK (on_error_cb), instance, NULL);
 
-  state1 = g_new(StateClosure, 1);
-  state2 = g_new(StateClosure, 1);
-  state3 = g_new(StateClosure, 1);
+  state1 = g_new (StateClosure, 1);
+  state2 = g_new (StateClosure, 1);
+  state3 = g_new (StateClosure, 1);
 
   state1->instance = instance;
   state2->instance = instance;
@@ -142,7 +142,12 @@ NPP_Destroy (NPP instance, NPSavedData **saved_data)
 
   NPPGbpData *data = (NPPGbpData *) instance->pdata;
 
-  g_object_unref (data->player);
+  g_signal_handlers_disconnect_matched (data->player, G_SIGNAL_MATCH_FUNC,
+      0 /* sigid */, 0 /* detail */, NULL /* closure */,
+      G_CALLBACK (on_state_cb), NULL /* data */);
+  g_signal_handlers_disconnect_matched (data->player, G_SIGNAL_MATCH_FUNC,
+      0 /* sigid */, 0 /* detail */, NULL /* closure */,
+      G_CALLBACK (on_error_cb), NULL /* data */);
 
 #ifndef PLAYBACK_THREAD_SINGLE
   free_data = FALSE;
@@ -151,6 +156,8 @@ NPP_Destroy (NPP instance, NPSavedData **saved_data)
   free_data = TRUE;
   gbp_player_stop (data->player);
 #endif
+
+  g_object_unref (data->player);
 
   if (free_data)
     npp_gbp_data_free (data);
