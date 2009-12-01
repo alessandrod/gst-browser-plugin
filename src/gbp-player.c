@@ -57,6 +57,7 @@ struct _GbpPlayerPrivate
   GstBus *bus;
   GstClockTime latency;
   gboolean disposed;
+  gboolean reset_state;
 };
 
 static guint player_signals[LAST_SIGNAL];
@@ -294,6 +295,11 @@ gbp_player_start (GbpPlayer *player)
     player->priv->uri_changed = FALSE;
   }
 
+  if (player->priv->reset_state) {
+    gbp_player_stop (player);
+    player->priv->reset_state = FALSE;
+  }
+
   gst_element_set_state (GST_ELEMENT (player->priv->pipeline),
       GST_STATE_PLAYING);
 }
@@ -312,6 +318,11 @@ gbp_player_pause (GbpPlayer *player)
   if (player->priv->uri_changed) {
     g_object_set (player->priv->pipeline, "uri", player->priv->uri, NULL);
     player->priv->uri_changed = FALSE;
+  }
+
+  if (player->priv->reset_state) {
+    gbp_player_stop (player);
+    player->priv->reset_state = FALSE;
   }
 
   gst_element_set_state (GST_ELEMENT (player->priv->pipeline),
@@ -399,6 +410,7 @@ static void
 on_bus_eos_cb (GstBus *bus, GstMessage *message,
     GbpPlayer *player)
 {
+  player->priv->reset_state = TRUE;
   g_signal_emit (player, player_signals[SIGNAL_STOPPED], 0);
 }
 
@@ -411,6 +423,7 @@ on_bus_error_cb (GstBus *bus, GstMessage *message,
 
   gst_message_parse_error (message, &error, &debug);
 
+  player->priv->reset_state = TRUE;
   g_signal_emit (player, player_signals[SIGNAL_ERROR], 0, error, debug);
 }
 
