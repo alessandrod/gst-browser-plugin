@@ -291,6 +291,8 @@ gbp_player_start (GbpPlayer *player)
   }
 
   if (player->priv->uri_changed) {
+    gbp_player_stop (player);
+
     g_object_set (player->priv->pipeline, "uri", player->priv->uri, NULL);
     player->priv->uri_changed = FALSE;
   }
@@ -316,6 +318,8 @@ gbp_player_pause (GbpPlayer *player)
   }
 
   if (player->priv->uri_changed) {
+    gbp_player_stop (player);
+
     g_object_set (player->priv->pipeline, "uri", player->priv->uri, NULL);
     player->priv->uri_changed = FALSE;
   }
