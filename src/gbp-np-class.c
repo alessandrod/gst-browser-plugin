@@ -66,6 +66,8 @@ static bool gbp_np_class_method_set_error_handler (NPObject *obj,
 static bool gbp_np_class_method_set_state_handler (NPObject *obj,
     NPIdentifier name, const NPVariant *args, uint32_t argCount,
     NPVariant *result);
+static bool gbp_np_class_method_get_duration (NPObject *obj, NPIdentifier name,
+    const NPVariant *args, uint32_t argCount, NPVariant *result);
 
 static bool gbp_np_class_property_generic_get (NPObject *obj,
     NPIdentifier name, NPVariant *result);
@@ -102,6 +104,7 @@ static GbpNPClassMethod gbp_np_class_methods[] = {
   {"start", gbp_np_class_method_start},
   {"stop", gbp_np_class_method_stop},
   {"pause", gbp_np_class_method_pause},
+  {"get_duration", gbp_np_class_method_get_duration},
   {"setErrorHandler", gbp_np_class_method_set_error_handler},
   {"setStateHandler", gbp_np_class_method_set_state_handler},
 
@@ -277,6 +280,30 @@ gbp_np_class_method_pause (NPObject *npobj, NPIdentifier name,
   playback_command_push (PLAYBACK_CMD_PAUSE, data, FALSE);
 
   VOID_TO_NPVARIANT (*result);
+  return TRUE;
+}
+
+static bool
+gbp_np_class_method_get_duration (NPObject *npobj, NPIdentifier name,
+    const NPVariant *args, uint32_t argCount, NPVariant *result)
+{
+  GstClockTime duration;
+  guint32 res;
+  GbpNPObject *obj = (GbpNPObject *) npobj;
+
+  g_return_val_if_fail (obj != NULL, FALSE);
+  g_return_val_if_fail (name != NULL, FALSE);
+  g_return_val_if_fail (args != NULL, FALSE);
+  g_return_val_if_fail (result != NULL, FALSE);
+
+  NPPGbpData *data = (NPPGbpData *) obj->instance->pdata;
+  duration = gbp_player_get_duration (data->player);
+  if (duration == GST_CLOCK_TIME_NONE)
+    res = 0;
+  else
+    res = duration / GST_MSECOND;
+
+  INT32_TO_NPVARIANT (res, *result);
   return TRUE;
 }
 

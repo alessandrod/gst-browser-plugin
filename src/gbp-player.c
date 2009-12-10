@@ -333,6 +333,23 @@ gbp_player_pause (GbpPlayer *player)
       GST_STATE_PAUSED);
 }
 
+GstClockTime
+gbp_player_get_duration (GbpPlayer *player)
+{
+  gint64 duration;
+  GstFormat format = GST_FORMAT_TIME;
+
+  g_return_val_if_fail (player != NULL, GST_CLOCK_TIME_NONE);
+
+  if (!player->priv->have_pipeline)
+    return GST_CLOCK_TIME_NONE;
+
+  if (!gst_element_query_duration (GST_ELEMENT (player->priv->pipeline), &format, &duration))
+    return GST_CLOCK_TIME_NONE;
+
+  return (GstClockTime) duration;
+}
+
 void
 gbp_player_stop (GbpPlayer *player)
 {
