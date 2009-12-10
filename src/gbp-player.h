@@ -66,6 +66,7 @@ void gbp_player_start (GbpPlayer *player);
 void gbp_player_pause (GbpPlayer *player);
 void gbp_player_stop (GbpPlayer *player);
 GstClockTime gbp_player_get_duration (GbpPlayer *player);
+GstClockTime gbp_player_get_position (GbpPlayer *player);
 
 G_END_DECLS
 
