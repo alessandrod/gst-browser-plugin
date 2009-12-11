@@ -70,6 +70,8 @@ static bool gbp_np_class_method_get_duration (NPObject *obj, NPIdentifier name,
     const NPVariant *args, uint32_t argCount, NPVariant *result);
 static bool gbp_np_class_method_get_position (NPObject *obj, NPIdentifier name,
     const NPVariant *args, uint32_t argCount, NPVariant *result);
+static bool gbp_np_class_method_seek (NPObject *obj, NPIdentifier name,
+    const NPVariant *args, uint32_t argCount, NPVariant *result);
 
 static bool gbp_np_class_property_generic_get (NPObject *obj,
     NPIdentifier name, NPVariant *result);
@@ -108,6 +110,7 @@ static GbpNPClassMethod gbp_np_class_methods[] = {
   {"pause", gbp_np_class_method_pause},
   {"get_duration", gbp_np_class_method_get_duration},
   {"get_position", gbp_np_class_method_get_position},
+  {"seek", gbp_np_class_method_seek},
   {"setErrorHandler", gbp_np_class_method_set_error_handler},
   {"setStateHandler", gbp_np_class_method_set_state_handler},
 
@@ -331,6 +334,53 @@ gbp_np_class_method_get_position (NPObject *npobj, NPIdentifier name,
     res = position / GST_MSECOND;
 
   INT32_TO_NPVARIANT (res, *result);
+  return TRUE;
+}
+
+static bool
+gbp_np_class_method_seek (NPObject *npobj, NPIdentifier name,
+    const NPVariant *args, uint32_t argCount, NPVariant *result)
+{
+  GstClockTime position;
+  gdouble rate = 1.0;
+  gboolean res;
+  GbpNPObject *obj = (GbpNPObject *) npobj;
+
+  g_return_val_if_fail (obj != NULL, FALSE);
+  g_return_val_if_fail (name != NULL, FALSE);
+  g_return_val_if_fail (args != NULL, FALSE);
+  g_return_val_if_fail (result != NULL, FALSE);
+
+  if (argCount < 1 || argCount > 2) {
+    NPN_SetException (npobj, "invalid number of arguments");
+
+    return FALSE;
+  }
+
+  if (args[0].type == NPVariantType_Int32) {
+    position = args[0].value.intValue * GST_MSECOND;
+  } else {
+    NPN_SetException (npobj, "position must be an integer");
+
+    return FALSE;
+  }
+
+  if (argCount == 2) {
+    if (args[1].type == NPVariantType_Double) {
+      rate = args[1].value.doubleValue;
+    } else if (args[1].type == NPVariantType_Int32) {
+      rate = args[1].value.intValue;
+    } else {
+      NPN_SetException (npobj, "rate must be a double");
+
+      return FALSE;
+    }
+  }
+
+  NPPGbpData *data = (NPPGbpData *) obj->instance->pdata;
+  res = gbp_player_seek (data->player, position, rate);
+
+  BOOLEAN_TO_NPVARIANT (res, *result);
   return TRUE;
 }
 

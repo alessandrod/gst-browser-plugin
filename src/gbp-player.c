@@ -367,6 +367,24 @@ gbp_player_get_position (GbpPlayer *player)
   return (GstClockTime) position;
 }
 
+gboolean
+gbp_player_seek (GbpPlayer *player, GstClockTime position, gdouble rate)
+{
+  GstFormat format;
+  GstSeekFlags seek_flags;
+
+  g_return_val_if_fail (player != NULL, FALSE);
+
+  if (!player->priv->have_pipeline)
+    return FALSE;
+
+  format = GST_FORMAT_TIME;
+  seek_flags = GST_SEEK_FLAG_FLUSH;
+
+  return gst_element_seek (GST_ELEMENT (player->priv->pipeline), rate,
+      format, seek_flags, GST_SEEK_TYPE_SET, position, GST_SEEK_TYPE_NONE, 0);
+}
+
 void
 gbp_player_stop (GbpPlayer *player)
 {
