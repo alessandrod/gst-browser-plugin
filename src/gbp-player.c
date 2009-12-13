@@ -294,7 +294,7 @@ build_pipeline (GbpPlayer *player)
 
   if (player->priv->volume)
     g_object_set (player->priv->pipeline,
-        "volume", &player->priv->volume, NULL);
+        "volume", player->priv->volume, NULL);
 
   player->priv->have_pipeline = TRUE;
   return TRUE;
