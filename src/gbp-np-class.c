@@ -542,7 +542,14 @@ static bool gbp_np_class_property_volume_set (NPObject *npobj,
   g_return_val_if_fail (obj != NULL, FALSE);
   g_return_val_if_fail (value != NULL, FALSE);
 
-  volume = NPVARIANT_TO_DOUBLE (*value);
+  if (value->type == NPVariantType_Int32)
+    volume = NPVARIANT_TO_INT32 (*value);
+  else if (value->type == NPVariantType_Double)
+    volume = NPVARIANT_TO_DOUBLE (*value);
+  else {
+    NPN_SetException (npobj, "volume must be a number");
+    return FALSE;
+  }
 
   NPPGbpData *data = (NPPGbpData *) obj->instance->pdata;
 
