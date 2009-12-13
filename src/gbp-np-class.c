@@ -85,6 +85,10 @@ static bool gbp_np_class_property_uri_get (NPObject *obj,
     NPIdentifier name, NPVariant *result);
 static bool gbp_np_class_property_uri_set (NPObject *obj,
     NPIdentifier name, const NPVariant *value);
+static bool gbp_np_class_property_volume_get (NPObject *obj,
+    NPIdentifier name, NPVariant *result);
+static bool gbp_np_class_property_volume_set (NPObject *obj,
+    NPIdentifier name, const NPVariant *value);
 
 PlaybackCommand *playback_command_new (PlaybackCommandCode code,
     NPPGbpData *data, gboolean free_data);
@@ -121,6 +125,7 @@ static GbpNPClassMethod gbp_np_class_methods[] = {
 static GbpNPClassProperty gbp_np_class_properties[] = {
   {"state", gbp_np_class_property_state_get, NULL, NULL},
   {"uri", gbp_np_class_property_uri_get, gbp_np_class_property_uri_set, NULL},
+  {"volume", gbp_np_class_property_volume_get, gbp_np_class_property_volume_set, NULL},
   /* sentinel */
   {NULL, NULL}
 };
@@ -507,6 +512,41 @@ static bool gbp_np_class_property_uri_set (NPObject *npobj,
   NPPGbpData *data = (NPPGbpData *) obj->instance->pdata;
 
   g_object_set (data->player, "uri", uri, NULL);
+
+  return TRUE;
+}
+
+static bool gbp_np_class_property_volume_get (NPObject *npobj,
+    NPIdentifier name, NPVariant *result)
+{
+  GbpNPObject *obj = (GbpNPObject *) npobj;
+  gdouble volume;
+
+  g_return_val_if_fail (obj != NULL, FALSE);
+  g_return_val_if_fail (result != NULL, FALSE);
+
+  NPPGbpData *data = (NPPGbpData *) obj->instance->pdata;
+
+  g_object_get (data->player, "volume", &volume, NULL);
+
+  DOUBLE_TO_NPVARIANT (volume, *result);
+  return TRUE;
+}
+
+static bool gbp_np_class_property_volume_set (NPObject *npobj,
+    NPIdentifier name, const NPVariant *value)
+{
+  GbpNPObject *obj = (GbpNPObject *) npobj;
+  gdouble volume;
+
+  g_return_val_if_fail (obj != NULL, FALSE);
+  g_return_val_if_fail (value != NULL, FALSE);
+
+  volume = NPVARIANT_TO_DOUBLE (*value);
+
+  NPPGbpData *data = (NPPGbpData *) obj->instance->pdata;
+
+  g_object_set (data->player, "volume", volume, NULL);
 
   return TRUE;
 }

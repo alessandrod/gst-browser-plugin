@@ -35,6 +35,7 @@ enum {
   PROP_XID,
   PROP_WIDTH,
   PROP_HEIGHT,
+  PROP_VOLUME,
 };
 
 enum {
@@ -58,6 +59,7 @@ struct _GbpPlayerPrivate
   GstClockTime latency;
   gboolean disposed;
   gboolean reset_state;
+  gdouble volume;
 };
 
 static guint player_signals[LAST_SIGNAL];
@@ -134,6 +136,10 @@ gbp_player_class_init (GbpPlayerClass *klass)
       g_param_spec_uint ("height", "Height", "Height",
           0, G_MAXINT32, 0, flags));
 
+  g_object_class_install_property (gobject_class, PROP_VOLUME,
+      g_param_spec_double ("volume", "Volume", "Volume",
+          0.0, G_MAXDOUBLE, 1.0, flags));
+
   player_signals[SIGNAL_PLAYING] = g_signal_new ("playing",
       G_TYPE_FROM_CLASS (klass), G_SIGNAL_RUN_LAST,
       G_STRUCT_OFFSET (GbpPlayerClass, playing), NULL, NULL,
@@ -187,6 +193,9 @@ gbp_player_get_property (GObject * object, guint prop_id,
     case PROP_HEIGHT:
       g_value_set_uint (value, player->priv->height);
       break;
+    case PROP_VOLUME:
+      g_value_set_double (value, player->priv->volume);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
   }
@@ -212,6 +221,14 @@ gbp_player_set_property (GObject * object, guint prop_id,
       break;
     case PROP_HEIGHT:
       player->priv->height = g_value_get_uint (value);
+      break;
+    case PROP_VOLUME:
+      player->priv->volume = g_value_get_double (value);
+
+      if (player->priv->have_pipeline)
+        g_object_set (player->priv->pipeline, "volume",
+            g_value_get_double (value), NULL);
+
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -274,6 +291,10 @@ build_pipeline (GbpPlayer *player)
   g_object_connect (autovideosink,
       "signal::element-added", autovideosink_element_added_cb, player,
       NULL);
+
+  if (player->priv->volume)
+    g_object_set (player->priv->pipeline,
+        "volume", &player->priv->volume, NULL);
 
   player->priv->have_pipeline = TRUE;
   return TRUE;
