@@ -64,7 +64,7 @@ NPP_New (NPMIMEType plugin_type, NPP instance, uint16_t mode,
   char *uri = NULL;
   guint width = 0, height = 0;
   int i;
-  StateClosure *state1, *state2, *state3;
+  StateClosure *state1, *state2, *state3, *state4;
 
   if (!instance)
     return NPERR_INVALID_INSTANCE_ERROR;
@@ -107,14 +107,17 @@ NPP_New (NPMIMEType plugin_type, NPP instance, uint16_t mode,
   state1 = g_new (StateClosure, 1);
   state2 = g_new (StateClosure, 1);
   state3 = g_new (StateClosure, 1);
+  state4 = g_new (StateClosure, 1);
 
   state1->instance = instance;
   state2->instance = instance;
   state3->instance = instance;
+  state4->instance = instance;
 
   state1->state = "PLAYING";
   state2->state = "PAUSED";
   state3->state = "STOPPED";
+  state4->state = "UNEXPECTED_EOS";
 
   g_signal_connect_data (player, "playing",
       G_CALLBACK(on_state_cb), state1, (GClosureNotify) g_free, 0);
@@ -122,6 +125,8 @@ NPP_New (NPMIMEType plugin_type, NPP instance, uint16_t mode,
       G_CALLBACK(on_state_cb), state2, (GClosureNotify) g_free, 0);
   g_signal_connect_data (player, "stopped",
       G_CALLBACK(on_state_cb), state3, (GClosureNotify) g_free, 0);
+  g_signal_connect_data (player, "unexpected-eos",
+      G_CALLBACK(on_state_cb), state4, (GClosureNotify) g_free, 0);
 
   instance->pdata = pdata;
 

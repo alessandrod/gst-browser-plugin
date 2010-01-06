@@ -58,6 +58,7 @@ struct _GbpPlayerClass {
   void (*playing)(GbpPlayer *player);
   void (*paused)(GbpPlayer *player);
   void (*stopped)(GbpPlayer *player);
+  void (*unexpected_eos)(GbpPlayer *player);
   void (*error)(GbpPlayer *player, GError *error, const char *debug);
 };
 
