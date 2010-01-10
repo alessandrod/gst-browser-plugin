@@ -97,10 +97,10 @@ NPP_New (NPMIMEType plugin_type, NPP instance, uint16_t mode,
   pdata->errorHandler = NULL;
   pdata->stateHandler = NULL;
   pdata->state = g_strdup ("STOPPED");
+  pdata->playback_queue = g_async_queue_new ();
+  pdata->queue_length = 0;
 
-#ifndef PLAYBACK_THREAD_SINGLE
   gbp_np_class_start_object_playback_thread (pdata);
-#endif
 
   g_object_connect (G_OBJECT (player), "signal::error",
       G_CALLBACK (on_error_cb), instance, NULL);
@@ -141,8 +141,6 @@ NPP_New (NPMIMEType plugin_type, NPP instance, uint16_t mode,
 NPError
 NPP_Destroy (NPP instance, NPSavedData **saved_data)
 {
-  gboolean free_data;
-
   if (!instance)
     return NPERR_INVALID_INSTANCE_ERROR;
 
@@ -155,18 +153,11 @@ NPP_Destroy (NPP instance, NPSavedData **saved_data)
       0 /* sigid */, 0 /* detail */, NULL /* closure */,
       G_CALLBACK (on_error_cb), NULL /* data */);
 
-#ifndef PLAYBACK_THREAD_SINGLE
-  free_data = FALSE;
   gbp_np_class_stop_object_playback_thread (data);
-#else
-  free_data = TRUE;
-  gbp_player_stop (data->player);
-#endif
 
   g_object_unref (data->player);
 
-  if (free_data)
-    npp_gbp_data_free (data);
+  /* FIXME data is leaked here */
 
   return NPERR_NO_ERROR;
 }

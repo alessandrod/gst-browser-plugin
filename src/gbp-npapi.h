@@ -36,14 +36,11 @@ typedef struct _NPPGbpData
   GbpPlayer *player;
   NPObject *errorHandler;
   NPObject *stateHandler;
-#ifndef PLAYBACK_THREAD_SINGLE
 #ifndef PLAYBACK_THREAD_POOL
   GThread *playback_thread;
-#else
+#endif
   gint queue_length;
-#endif
   GAsyncQueue *playback_queue;
-#endif
   char *state;
 } NPPGbpData;
 
