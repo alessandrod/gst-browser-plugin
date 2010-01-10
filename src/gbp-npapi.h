@@ -37,7 +37,11 @@ typedef struct _NPPGbpData
   NPObject *errorHandler;
   NPObject *stateHandler;
 #ifndef PLAYBACK_THREAD_SINGLE
+#ifndef PLAYBACK_THREAD_POOL
   GThread *playback_thread;
+#else
+  gint queue_length;
+#endif
   GAsyncQueue *playback_queue;
 #endif
   char *state;

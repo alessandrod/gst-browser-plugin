@@ -19,10 +19,17 @@
  * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
  * Boston, MA 02111-1307, USA.
  */
+#include "config.h"
+
 #include "gbp-np-class.h"
 #include <string.h>
 
 GbpNPClass gbp_np_class;
+#ifndef PLAYBACK_THREAD_SINGLE
+#ifdef PLAYBACK_THREAD_POOL
+static GThreadPool *playback_thread_pool;
+#endif
+#endif
 
 typedef struct
 {
@@ -95,7 +102,13 @@ PlaybackCommand *playback_command_new (PlaybackCommandCode code,
 void playback_command_free (PlaybackCommand *command);
 void playback_command_push (PlaybackCommandCode code,
     NPPGbpData *data, gboolean free_data);
-gpointer playback_thread_func (gpointer data);
+#ifndef PLAYBACK_THREAD_SINGLE
+#ifndef PLAYBACK_THREAD_POOL
+static gpointer playback_thread_func (gpointer data);
+#else
+static void playback_thread_pool_func (gpointer pool_data, gpointer push_data);
+#endif
+#endif
 void gbp_np_class_start_playback_thread ();
 void gbp_np_class_stop_playback_thread ();
 static gint compare_commands(gconstpointer a, gconstpointer b, gpointer user_data);
@@ -621,6 +634,12 @@ gbp_np_class_init ()
 
   joinable_threads = g_async_queue_new ();
 
+#ifdef PLAYBACK_THREAD_POOL
+  playback_thread_pool = g_thread_pool_new (playback_thread_pool_func, NULL,
+      PLAYBACK_THREAD_POOL_MAX_SIZE, FALSE, NULL);
+  g_thread_pool_set_max_idle_time (PLAYBACK_THREAD_POOL_MAX_IDLE_TIME);
+#endif
+
 #ifdef PLAYBACK_THREAD_SINGLE
   gbp_np_class_start_playback_thread ();
 #endif
@@ -634,7 +653,11 @@ gbp_np_class_free ()
   g_return_if_fail (klass->structVersion != 0);
 
 #ifdef PLAYBACK_THREAD_SINGLE
+#ifndef PLAYBACK_THREAD_POOL
   gbp_np_class_stop_playback_thread ();
+#else
+  g_thread_pool_free (playback_thread_pool);
+#endif
 #endif
 
   g_print ("~ %d threads to join\n", g_async_queue_length (joinable_threads));
@@ -656,8 +679,12 @@ gbp_np_class_free ()
 void gbp_np_class_start_object_playback_thread(NPPGbpData *data)
 {
   data->playback_queue = g_async_queue_new ();
+#ifndef PLAYBACK_THREAD_POOL
   data->playback_thread = g_thread_create (playback_thread_func,
       data->playback_queue, TRUE, NULL);
+#else
+  data->queue_length = 0;
+#endif
 }
 
 void gbp_np_class_stop_object_playback_thread(NPPGbpData *data)
@@ -732,61 +759,118 @@ playback_command_push (PlaybackCommandCode code,
 
   PlaybackCommand *command = playback_command_new (code, data, free_data);
   g_async_queue_push_sorted (playback_queue, command, compare_commands, NULL);
+
+#ifdef PLAYBACK_THREAD_POOL
+  if (g_atomic_int_exchange_and_add (&data->queue_length, 1) == 0)
+    g_thread_pool_push (playback_thread_pool, data, NULL);
+#endif
 }
 
-gpointer
-playback_thread_func (gpointer data)
+static gboolean
+do_playback_command (PlaybackCommand *command)
 {
-  GAsyncQueue *queue = (GAsyncQueue *) data;
-  PlaybackCommand *command;
   GbpPlayer *player;
+  gboolean exit = FALSE;  
+
+  if (command->player)
+    player = command->player;
+  else
+    player = NULL;
+
+  g_print ("player %p processing command %d\n", player, command->code);
+  switch (command->code) {
+    case PLAYBACK_CMD_STOP:
+      gbp_player_stop (player);
+      break;
+
+    case PLAYBACK_CMD_PAUSE:
+      gbp_player_pause (player);
+      break;
+
+    case PLAYBACK_CMD_START:
+      gbp_player_start (player);
+      break;
+
+    case PLAYBACK_CMD_QUIT:
+      gbp_player_stop (player);
+      exit = TRUE;
+      break;
+
+    default:
+      g_warn_if_reached ();
+  }
+
+  return exit;
+}
+
+static void
+do_playback_queue (GAsyncQueue *queue, GTimeVal *timeout)
+{
+  PlaybackCommand *command;
   gboolean exit = FALSE;
 
   while (exit == FALSE) {
-    command = g_async_queue_pop (queue);
+    command = g_async_queue_timed_pop (queue, timeout);
+    if (command == NULL)
+      break;
 
-    if (command->player)
-      player = command->player;
-    else
-      player = NULL;
+    exit = do_playback_command (command);
+    playback_command_free (command);
+  }
 
-    g_print ("player %p processing command %d\n", player, command->code);
-    switch (command->code) {
-      case PLAYBACK_CMD_STOP:
-        gbp_player_stop (player);
-        break;
-
-      case PLAYBACK_CMD_PAUSE:
-        gbp_player_pause (player);
-        break;
-
-      case PLAYBACK_CMD_START:
-        gbp_player_start (player);
-        break;
-
-      case PLAYBACK_CMD_QUIT:
-        gbp_player_stop (player);
-        exit = TRUE;
-        break;
-
-      default:
-        g_warn_if_reached ();
+  if (exit) {
+    while (g_async_queue_length (queue)) {
+      command = g_async_queue_pop (queue);
+      playback_command_free (command);
     }
 
-    playback_command_free (command);
-    command = NULL;
+    g_async_queue_unref (queue);
   }
+}
 
-  while (g_async_queue_length (queue)) {
-    command = g_async_queue_pop (queue);
-    playback_command_free (command);
-  }
+#ifndef PLAYBACK_THREAD_SINGLE
+#ifndef PLAYBACK_THREAD_POOL
+static gpointer
+playback_thread_func (gpointer data)
+{
+  GAsyncQueue *queue = (GAsyncQueue *) data;
 
-  g_async_queue_unref (queue);
+  /* loop over the queue forever */
+  do_playback_queue (queue, NULL);
+
   g_async_queue_push (joinable_threads, g_thread_self ());
 
   return NULL;
 }
+#else
+static void
+playback_thread_pool_func (gpointer push_data, gpointer pull_data)
+{
+  NPPGbpData *data = (NPPGbpData *) push_data;
+  GTimeVal timeout;
+  GbpPlayer *player = NULL;
+
+  timeout.tv_sec = 0;
+  timeout.tv_usec = 100;
+
+  if (data->player != NULL)
+    player = data->player;
+
+  g_print ("pool worker %p working on player %p\n",
+      g_thread_self (), player);
+
+do_stuff:
+  do_playback_queue (data->playback_queue, &timeout);
+
+  if (!g_atomic_int_dec_and_test (&data->queue_length))
+    /* something was just enqueued */
+    goto do_stuff;
+
+  g_print ("pool worker %p done working on player %p\n",
+      g_thread_self (), player);
+}
+#endif
+#endif
 
 static gint
 compare_commands(gconstpointer a, gconstpointer b, gpointer user_data)

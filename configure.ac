@@ -1,5 +1,12 @@
 AC_PREREQ(2.52)
 AC_INIT(GStreamer-Browser-Plugin, 0.10.0.1)
+AM_CONFIG_HEADER([config.h])
+AC_DEFINE([PLAYBACK_THREAD_POOL], [],
+    [Use a thread pool to execute playback commands])
+AC_DEFINE([PLAYBACK_THREAD_POOL_MAX_SIZE], [80],
+    [Max number of threads to create in the pool])
+AC_DEFINE([PLAYBACK_THREAD_POOL_MAX_IDLE_TIME], [5000],
+    [Max idle time for a thread in the pool])
 AC_CANONICAL_TARGET
 AM_INIT_AUTOMAKE
 dnl can autoconf find the source ?
