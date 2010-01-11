@@ -39,7 +39,6 @@ typedef struct _NPPGbpData
 #ifndef PLAYBACK_THREAD_POOL
   GThread *playback_thread;
 #endif
-  gint queue_length;
   GAsyncQueue *playback_queue;
   char *state;
 } NPPGbpData;

@@ -98,7 +98,6 @@ NPP_New (NPMIMEType plugin_type, NPP instance, uint16_t mode,
   pdata->stateHandler = NULL;
   pdata->state = g_strdup ("STOPPED");
   pdata->playback_queue = g_async_queue_new ();
-  pdata->queue_length = 0;
 
   gbp_np_class_start_object_playback_thread (pdata);
 
@@ -490,6 +489,10 @@ npp_gbp_data_free (NPPGbpData *data)
   if (data->state)
     g_free (data->state);
   data->state = NULL;
+
+  if (data->playback_queue)
+    g_async_queue_unref (data->playback_queue);
+  data->playback_queue = NULL;
 
   NPN_MemFree (data);
 }

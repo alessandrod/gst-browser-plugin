@@ -714,12 +714,15 @@ playback_command_push (PlaybackCommandCode code,
   g_return_if_fail (data != NULL);
 
   PlaybackCommand *command = playback_command_new (code, data, free_data);
-  g_async_queue_push_sorted (data->playback_queue, command, compare_commands, NULL);
+  g_async_queue_lock (data->playback_queue);
+  g_async_queue_push_sorted_unlocked (data->playback_queue,
+      command, compare_commands, NULL);
 
 #ifdef PLAYBACK_THREAD_POOL
-  if (g_atomic_int_exchange_and_add (&data->queue_length, 1) == 0)
+  if (g_async_queue_length_unlocked (data->playback_queue) == 1)
     g_thread_pool_push (playback_thread_pool, data, NULL);
 #endif
+  g_async_queue_unlock (data->playback_queue);
 }
 
 static gboolean
@@ -759,10 +762,10 @@ do_playback_command (PlaybackCommand *command)
   return exit;
 }
 
-static void
+static gboolean
 do_playback_queue (GAsyncQueue *queue, GTimeVal *timeout)
 {
-  PlaybackCommand *command;
+  PlaybackCommand *command, *flushed_command;
   gboolean exit = FALSE;
 
   while (exit == FALSE) {
@@ -771,17 +774,17 @@ do_playback_queue (GAsyncQueue *queue, GTimeVal *timeout)
       break;
 
     exit = do_playback_command (command);
+    if (exit) {
+      while (g_async_queue_length (queue)) {
+        flushed_command = g_async_queue_pop (queue);
+        playback_command_free (flushed_command);
+      }
+    }
+    
     playback_command_free (command);
   }
 
-  if (exit) {
-    while (g_async_queue_length (queue)) {
-      command = g_async_queue_pop (queue);
-      playback_command_free (command);
-    }
-
-    g_async_queue_unref (queue);
-  }
+  return exit;
 }
 
 #ifndef PLAYBACK_THREAD_POOL
@@ -814,12 +817,7 @@ playback_thread_pool_func (gpointer push_data, gpointer pull_data)
   g_print ("pool worker %p working on player %p\n",
       g_thread_self (), player);
 
-do_stuff:
   do_playback_queue (data->playback_queue, &timeout);
-
-  if (!g_atomic_int_dec_and_test (&data->queue_length))
-    /* something was just enqueued */
-    goto do_stuff;
 
   g_print ("pool worker %p done working on player %p\n",
       g_thread_self (), player);
