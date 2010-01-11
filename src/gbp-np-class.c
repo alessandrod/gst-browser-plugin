@@ -115,7 +115,9 @@ static NPIdentifier *method_identifiers;
 static guint methods_num;
 static NPIdentifier *property_identifiers;
 static guint properties_num;
+#ifndef PLAYBACK_THREAD_POOL
 static GAsyncQueue *joinable_threads;
+#endif
 
 static GbpNPClassMethod gbp_np_class_methods[] = {
   {"start", gbp_np_class_method_start},
@@ -628,12 +630,13 @@ gbp_np_class_init ()
   NPN_MemFree (method_names);
   NPN_MemFree (property_names);
 
-  joinable_threads = g_async_queue_new ();
 
 #ifdef PLAYBACK_THREAD_POOL
   playback_thread_pool = g_thread_pool_new (playback_thread_pool_func, NULL,
       PLAYBACK_THREAD_POOL_MAX_SIZE, FALSE, NULL);
   g_thread_pool_set_max_idle_time (PLAYBACK_THREAD_POOL_MAX_IDLE_TIME);
+#else
+  joinable_threads = g_async_queue_new ();
 #endif
 }
 
@@ -646,8 +649,8 @@ gbp_np_class_free ()
 
 #ifdef PLAYBACK_THREAD_POOL
   g_thread_pool_free (playback_thread_pool, FALSE, FALSE);
-#endif
-
+  playback_thread_pool = NULL;
+#else
   g_print ("~ %d threads to join\n", g_async_queue_length (joinable_threads));
   while (g_async_queue_length (joinable_threads)) {
     GThread *thread = (GThread *) g_async_queue_pop (joinable_threads);
@@ -657,6 +660,7 @@ gbp_np_class_free ()
 
   g_async_queue_unref (joinable_threads);
   joinable_threads = NULL;
+#endif
 
   NPN_MemFree (method_identifiers);
 
