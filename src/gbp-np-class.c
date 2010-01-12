@@ -677,7 +677,7 @@ void gbp_np_class_start_object_playback_thread(NPPGbpData *data)
 
 void gbp_np_class_stop_object_playback_thread(NPPGbpData *data)
 {
-  playback_command_push (PLAYBACK_CMD_QUIT, data, TRUE);
+  playback_command_push (PLAYBACK_CMD_QUIT, data, FALSE);
 }
 
 PlaybackCommand *

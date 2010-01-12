@@ -154,10 +154,6 @@ NPP_Destroy (NPP instance, NPSavedData **saved_data)
 
   gbp_np_class_stop_object_playback_thread (data);
 
-  g_object_unref (data->player);
-
-  /* FIXME data is leaked here */
-
   return NPERR_NO_ERROR;
 }
 

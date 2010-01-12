@@ -95,6 +95,9 @@ gbp_player_dispose (GObject *object)
     if (player->priv->pipeline != NULL) {
       g_object_unref (player->priv->pipeline);
       g_object_unref (player->priv->bus);
+
+      player->priv->pipeline = NULL;
+      player->priv->bus = NULL;
     }
   }
 
