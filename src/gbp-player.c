@@ -59,6 +59,7 @@ struct _GbpPlayerPrivate
   GstPipeline *pipeline;
   GstBus *bus;
   GstClockTime latency;
+  GstClockTime tcp_timeout;
   gboolean disposed;
   gboolean reset_state;
   gdouble volume;
@@ -70,11 +71,9 @@ static void gbp_player_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
 static void gbp_player_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
-static void playbin_element_added_cb (GstElement *playbin,
-    GstElement *element, GbpPlayer *player);
+static void playbin_source_cb (GstElement *playbin,
+    GParamSpec *pspec, GbpPlayer *player);
 static void autovideosink_element_added_cb (GstElement *autovideosink,
-    GstElement *element, GbpPlayer *player);
-static void uridecodebin_element_added_cb (GstElement *uridecodebin,
     GstElement *element, GbpPlayer *player);
 static void on_bus_state_changed_cb (GstBus *bus, GstMessage *message,
     GbpPlayer *player);
@@ -180,7 +179,8 @@ gbp_player_init (GbpPlayer *player)
 
   player->priv = priv = G_TYPE_INSTANCE_GET_PRIVATE (player,
       GBP_TYPE_PLAYER, GbpPlayerPrivate);
-  player->priv->latency = 3000;
+  player->priv->latency = 2 * GST_SECOND;
+  player->priv->tcp_timeout = 5 * GST_SECOND;
 }
 
 static void
@@ -295,7 +295,7 @@ build_pipeline (GbpPlayer *player)
       NULL);
 
   g_object_connect (player->priv->pipeline,
-      "signal::element-added", playbin_element_added_cb, player,
+      "signal::notify::source", playbin_source_cb, player,
       NULL);
 
   g_object_connect (autovideosink,
@@ -431,13 +431,23 @@ gbp_player_stop (GbpPlayer *player)
 }
 
 static void
-playbin_element_added_cb (GstElement *playbin,
-    GstElement *element, GbpPlayer *player)
+playbin_source_cb (GstElement *playbin,
+    GParamSpec *pspec, GbpPlayer *player)
 {
-  if (g_str_has_prefix (gst_element_get_name (element), "uridecodebin")) {
-    g_object_connect (element,
-        "signal::element-added", uridecodebin_element_added_cb, player,
-        NULL);
+  GstElement *element;
+  GObjectClass *klass;
+
+  g_object_get (G_OBJECT (playbin), "source", &element, NULL);
+  klass = G_OBJECT_GET_CLASS (element);
+
+  if (g_object_class_find_property (klass, "latency")) {
+    g_object_set (element, "latency",
+        GST_TIME_AS_MSECONDS (player->priv->latency), NULL);
+  }
+
+  if (g_object_class_find_property (klass, "tcp-timeout")) {
+    g_object_set (element, "tcp-timeout",
+        GST_TIME_AS_USECONDS (player->priv->tcp_timeout), NULL);
   }
 }
 
@@ -452,21 +462,6 @@ autovideosink_element_added_cb (GstElement *autovideosink,
     return;
   
   g_object_set (G_OBJECT (element), "double-buffer", FALSE, NULL);
-}
-
-static void
-uridecodebin_element_added_cb (GstElement *uridecodebin,
-    GstElement *element, GbpPlayer *player)
-{
-  GObjectClass *klass;
-
-  if (!strcmp (gst_element_get_name (element), "source")) {
-    klass = G_OBJECT_GET_CLASS (element);
-
-    if (g_object_class_find_property (klass, "latency")) {
-      g_object_set (element, "latency", player->priv->latency, NULL);
-    }
-  }
 }
 
 static void
