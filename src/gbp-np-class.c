@@ -94,6 +94,10 @@ static bool gbp_np_class_property_volume_get (NPObject *obj,
     NPIdentifier name, NPVariant *result);
 static bool gbp_np_class_property_volume_set (NPObject *obj,
     NPIdentifier name, const NPVariant *value);
+static bool gbp_np_class_property_have_audio_get (NPObject *obj,
+    NPIdentifier name, NPVariant *result);
+static bool gbp_np_class_property_have_audio_set (NPObject *obj,
+    NPIdentifier name, const NPVariant *value);
 
 PlaybackCommand *playback_command_new (PlaybackCommandCode code,
     NPPGbpData *data, gboolean free_data);
@@ -137,6 +141,7 @@ static GbpNPClassProperty gbp_np_class_properties[] = {
   {"state", gbp_np_class_property_state_get, NULL, NULL},
   {"uri", gbp_np_class_property_uri_get, gbp_np_class_property_uri_set, NULL},
   {"volume", gbp_np_class_property_volume_get, gbp_np_class_property_volume_set, NULL},
+  {"have_audio", gbp_np_class_property_have_audio_get, gbp_np_class_property_have_audio_set, NULL},
   /* sentinel */
   {NULL, NULL}
 };
@@ -565,6 +570,45 @@ static bool gbp_np_class_property_volume_set (NPObject *npobj,
   NPPGbpData *data = (NPPGbpData *) obj->instance->pdata;
 
   g_object_set (data->player, "volume", volume, NULL);
+
+  return TRUE;
+}
+
+static bool gbp_np_class_property_have_audio_get (NPObject *npobj,
+    NPIdentifier name, NPVariant *result)
+{
+  GbpNPObject *obj = (GbpNPObject *) npobj;
+  gboolean have_audio;
+
+  g_return_val_if_fail (obj != NULL, FALSE);
+  g_return_val_if_fail (result != NULL, FALSE);
+
+  NPPGbpData *data = (NPPGbpData *) obj->instance->pdata;
+
+  g_object_get (data->player, "have_audio", &have_audio, NULL);
+
+  BOOLEAN_TO_NPVARIANT (have_audio, *result);
+  return TRUE;
+}
+
+static bool gbp_np_class_property_have_audio_set (NPObject *npobj,
+    NPIdentifier name, const NPVariant *value)
+{
+  GbpNPObject *obj = (GbpNPObject *) npobj;
+  gboolean have_audio;
+
+  g_return_val_if_fail (obj != NULL, FALSE);
+  g_return_val_if_fail (value != NULL, FALSE);
+
+  if (value->type == NPVariantType_Bool) {
+    have_audio = NPVARIANT_TO_BOOLEAN (*value);
+  } else {
+    NPN_SetException (npobj, "have_audio must be a boolean");
+    return FALSE;
+  }
+
+  NPPGbpData *data = (NPPGbpData *) obj->instance->pdata;
+  g_object_set (data->player, "have_audio", have_audio, NULL);
 
   return TRUE;
 }

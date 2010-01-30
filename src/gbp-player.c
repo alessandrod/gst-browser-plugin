@@ -37,6 +37,7 @@ enum {
   PROP_WIDTH,
   PROP_HEIGHT,
   PROP_VOLUME,
+  PROP_HAVE_AUDIO
 };
 
 enum {
@@ -63,6 +64,7 @@ struct _GbpPlayerPrivate
   gboolean disposed;
   gboolean reset_state;
   gdouble volume;
+  gboolean have_audio;
 };
 
 static guint player_signals[LAST_SIGNAL];
@@ -143,6 +145,10 @@ gbp_player_class_init (GbpPlayerClass *klass)
   g_object_class_install_property (gobject_class, PROP_VOLUME,
       g_param_spec_double ("volume", "Volume", "Volume",
           0.0, G_MAXDOUBLE, 1.0, flags));
+  
+  g_object_class_install_property (gobject_class, PROP_HAVE_AUDIO,
+      g_param_spec_boolean ("have-audio", "Have Audio", "Have Audio",
+          TRUE, flags));
 
   player_signals[SIGNAL_PLAYING] = g_signal_new ("playing",
       G_TYPE_FROM_CLASS (klass), G_SIGNAL_RUN_LAST,
@@ -181,6 +187,7 @@ gbp_player_init (GbpPlayer *player)
       GBP_TYPE_PLAYER, GbpPlayerPrivate);
   player->priv->latency = 2 * GST_SECOND;
   player->priv->tcp_timeout = 5 * GST_SECOND;
+  player->priv->have_audio = TRUE;
 }
 
 static void
@@ -205,6 +212,9 @@ gbp_player_get_property (GObject * object, guint prop_id,
       break;
     case PROP_VOLUME:
       g_value_set_double (value, player->priv->volume);
+      break;
+    case PROP_HAVE_AUDIO:
+      g_value_set_boolean (value, player->priv->have_audio);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -240,6 +250,18 @@ gbp_player_set_property (GObject * object, guint prop_id,
             g_value_get_double (value), NULL);
 
       break;
+    case PROP_HAVE_AUDIO:
+    {
+      gboolean have_audio;
+
+      have_audio = g_value_get_boolean (value);
+      if (have_audio != player->priv->have_audio) {
+        player->priv->have_audio = have_audio;
+        player->priv->have_pipeline = FALSE;
+      }
+
+      break;
+    }
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
   }
@@ -253,6 +275,12 @@ static gboolean
 build_pipeline (GbpPlayer *player)
 {
   GstElement *autovideosink;
+  GstElement *audiosink;
+
+  if (player->priv->pipeline != NULL) {
+    gst_element_set_state (GST_ELEMENT (player->priv->pipeline), GST_STATE_NULL);
+    g_object_unref (player->priv->pipeline);
+  }
 
   player->priv->pipeline = GST_PIPELINE (gst_element_factory_make ("playbin2", NULL));
   if (player->priv->pipeline == NULL) {
@@ -283,7 +311,31 @@ build_pipeline (GbpPlayer *player)
     return FALSE;
   }
 
+  if (player->priv->have_audio) {
+    audiosink = gst_element_factory_make("autoaudiosink", NULL);
+  } else {
+    audiosink = gst_element_factory_make ("fakesink", NULL);
+    g_object_set (audiosink, "sync", TRUE, NULL);
+  }
+
+  if (audiosink == NULL) {
+    GError *error = g_error_new (GST_LIBRARY_ERROR,
+        GST_LIBRARY_ERROR_FAILED, "couldn't find %s",
+            player->priv->have_audio ? "autoaudiosink" : "fakesink");
+
+    g_signal_emit (player, player_signals[SIGNAL_ERROR], 0,
+        error, "more debug than that?");
+
+    g_error_free (error);
+
+    g_object_unref (player->priv->pipeline);
+    player->priv->pipeline = NULL;
+
+    return FALSE;
+  }
+
   g_object_set (G_OBJECT (player->priv->pipeline), "video-sink", autovideosink, NULL);
+  g_object_set (G_OBJECT (player->priv->pipeline), "audio-sink", audiosink, NULL);
   
   player->priv->bus = gst_pipeline_get_bus (player->priv->pipeline);
   gst_bus_enable_sync_message_emission (player->priv->bus);
