@@ -527,6 +527,7 @@ static bool gbp_np_class_property_uri_set (NPObject *npobj,
 
   NPPGbpData *data = (NPPGbpData *) obj->instance->pdata;
 
+  g_print ("setting uri %s on data %p player %p\n", uri, data, data->player);
   g_object_set (data->player, "uri", uri, NULL);
 
   return TRUE;
