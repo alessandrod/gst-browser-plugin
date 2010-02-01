@@ -528,7 +528,7 @@ on_bus_state_changed_cb (GstBus *bus, GstMessage *message,
   gst_message_parse_state_changed (message,
       &old_state, &new_state, &pending_state);
 
-  if (new_state == GST_STATE_READY &&
+  if (new_state == GST_STATE_READY && old_state > GST_STATE_READY &&
       pending_state <= GST_STATE_READY) {
     g_signal_emit (player, player_signals[SIGNAL_STOPPED], 0);
   } else if (new_state == GST_STATE_PAUSED &&
