@@ -51,6 +51,13 @@ typedef enum
   PLAYBACK_CMD_QUIT,
 } PlaybackCommandCode;
 
+static const char *playback_command_names[4] = {
+  "STOP",
+  "PAUSE",
+  "START",
+  "QUIT",
+};
+
 typedef struct
 {
   PlaybackCommandCode code;
@@ -441,8 +448,7 @@ gbp_np_class_method_set_state_handler (NPObject *npobj, NPIdentifier name,
   NPPGbpData *data = (NPPGbpData *) obj->instance->pdata;
   data->stateHandler = NPN_RetainObject(args[0].value.objectValue);
 
-  g_print ("set state handler %p on instance %p\n",
-      data->stateHandler, data);
+  GST_DEBUG_OBJECT (data->player, "set state handler %p", data->stateHandler);
       
 
   VOID_TO_NPVARIANT (*result);
@@ -527,7 +533,7 @@ static bool gbp_np_class_property_uri_set (NPObject *npobj,
 
   NPPGbpData *data = (NPPGbpData *) obj->instance->pdata;
 
-  g_print ("setting uri %s on data %p player %p\n", uri, data, data->player);
+  GST_INFO_OBJECT (data->player, "setting uri %s", uri);
   g_object_set (data->player, "uri", uri, NULL);
 
   return TRUE;
@@ -625,6 +631,9 @@ gbp_np_class_init ()
   /* only init once */
   g_return_if_fail (klass->structVersion == 0);
 
+  GST_DEBUG_CATEGORY_INIT (gbp_player_debug,
+      "gbp-player", 0, "GStreamer Browser Plugin");
+
   klass->structVersion = NP_CLASS_STRUCT_VERSION;
   klass->allocate = gbp_np_class_allocate;
   klass->deallocate = gbp_np_class_deallocate;
@@ -675,7 +684,6 @@ gbp_np_class_init ()
   NPN_MemFree (method_names);
   NPN_MemFree (property_names);
 
-
 #ifdef PLAYBACK_THREAD_POOL
   playback_thread_pool = g_thread_pool_new (playback_thread_pool_func, NULL,
       PLAYBACK_THREAD_POOL_MAX_SIZE, FALSE, NULL);
@@ -696,10 +704,8 @@ gbp_np_class_free ()
   g_thread_pool_free (playback_thread_pool, FALSE, FALSE);
   playback_thread_pool = NULL;
 #else
-  g_print ("~ %d threads to join\n", g_async_queue_length (joinable_threads));
   while (g_async_queue_length (joinable_threads)) {
     GThread *thread = (GThread *) g_async_queue_pop (joinable_threads);
-    g_print ("joining thread %p\n", thread);
     g_thread_join (thread);
   }
 
@@ -785,7 +791,8 @@ do_playback_command (PlaybackCommand *command)
   else
     player = NULL;
 
-  g_print ("player %p processing command %d\n", player, command->code);
+  GST_DEBUG_OBJECT (player, "processing command %s",
+      playback_command_names[command->code]);
   switch (command->code) {
     case PLAYBACK_CMD_STOP:
       gbp_player_stop (player);
@@ -863,13 +870,9 @@ playback_thread_pool_func (gpointer push_data, gpointer pull_data)
   if (data->player != NULL)
     player = data->player;
 
-  g_print ("pool worker %p working on player %p\n",
-      g_thread_self (), player);
-
   do_playback_queue (data->playback_queue, &timeout);
 
-  g_print ("pool worker %p done working on player %p\n",
-      g_thread_self (), player);
+  GST_DEBUG_OBJECT (player, "pool worker %p done", g_thread_self ());
 }
 #endif
 

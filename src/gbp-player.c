@@ -28,7 +28,7 @@
 
 GST_DEBUG_CATEGORY (gbp_player_debug);
 
-G_DEFINE_TYPE (GbpPlayer, gbp_player, G_TYPE_OBJECT);
+G_DEFINE_TYPE (GbpPlayer, gbp_player, GST_TYPE_OBJECT);
 
 enum {
   PROP_0,
@@ -508,6 +508,8 @@ autovideosink_element_added_cb (GstElement *autovideosink,
     GstElement *element, GbpPlayer *player)
 {
   GObjectClass *klass;
+
+  GST_INFO_OBJECT (player, "using sink %s", gst_element_get_name (element));
 
   klass = G_OBJECT_GET_CLASS (element);
   if (!g_object_class_find_property (klass, "double-buffer"))

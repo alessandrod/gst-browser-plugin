@@ -420,8 +420,8 @@ void on_error_cb (GbpPlayer *player, GError *error, const char *debug,
   g_return_if_fail (player != NULL);
   g_return_if_fail (error != NULL);
 
-  g_printerr ("error data %p player %p - %s: %s\n",
-      data, player, error->message, debug);
+  GST_ERROR_OBJECT (player, "error: %s -- debug: %s",
+      error->message, debug);
 
   if (data->errorHandler == NULL)
     return;
@@ -450,8 +450,7 @@ void on_state_cb (GbpPlayer *player, gpointer user_data)
 
   g_return_if_fail (player != NULL);
 
-  g_print ("new state data %p player %p - %s\n",
-      data, player, state_closure->state);
+  GST_INFO_OBJECT (player, "new state %s", state_closure->state);
 
   if (data->state != NULL)
     g_free (data->state);
@@ -460,9 +459,8 @@ void on_state_cb (GbpPlayer *player, gpointer user_data)
 
   if (data->stateHandler == NULL)
     return;
-  
-  g_print ("invoking state handler %p on data %p player %p\n",
-      data->stateHandler, data, player);
+ 
+  GST_DEBUG_OBJECT (player, "invoking state handler %p", data->stateHandler);
 
   invoke_data = invoke_data_new (instance, data->stateHandler, 1);
 

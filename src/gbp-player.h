@@ -46,13 +46,13 @@ typedef struct _GbpPlayerPrivate GbpPlayerPrivate;
 typedef struct _GbpPlayerClass GbpPlayerClass;
 
 struct _GbpPlayer {
-  GObject object;
+  GstObject object;
 
   GbpPlayerPrivate *priv;
 };
 
 struct _GbpPlayerClass {
-  GObjectClass object_class;
+  GstObjectClass object_class;
 
   /* signals */
   void (*playing)(GbpPlayer *player);
