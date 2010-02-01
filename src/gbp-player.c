@@ -552,11 +552,11 @@ on_bus_eos_cb (GstBus *bus, GstMessage *message,
   gst_element_get_state (GST_ELEMENT (message->src), &current, &pending, 0);
   shutting_down = (current <= GST_STATE_READY ||
       (pending != GST_STATE_VOID_PENDING && pending <= GST_STATE_READY));
-  if (!shutting_down)
-    g_signal_emit (player, player_signals[SIGNAL_UNEXPECTED_EOS], 0);
-
   player->priv->reset_state = TRUE;
   g_signal_emit (player, player_signals[SIGNAL_STOPPED], 0);
+
+  if (!shutting_down)
+    g_signal_emit (player, player_signals[SIGNAL_UNEXPECTED_EOS], 0);
 }
 
 static void
