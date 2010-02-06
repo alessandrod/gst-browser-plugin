@@ -16,7 +16,10 @@ if OSX_BUILD
 libgst_browser_plugin_la_CFLAGS += -DXP_MACOSX
 endif
 libgst_browser_plugin_la_LIBADD = $(GST_LIBS) -lgstinterfaces-0.10
-libgst_browser_plugin_la_LDFLAGS = -avoid-version -no-undefined -Wl,-znodelete
+libgst_browser_plugin_la_LDFLAGS = -avoid-version -no-undefined -dynamic
+if !OSX_BUILD
+libgst_browser_plugin_la_LDFLAGS += -Wl,-znodelete
+endif
 
 noinst_HEADERS = \
 	gbp-np-class.h \
