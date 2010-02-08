@@ -185,20 +185,31 @@ gbp_np_class_has_method (NPObject *obj, NPIdentifier name)
 }
 
 static bool
-gbp_np_class_invoke (NPObject *obj, NPIdentifier name,
+gbp_np_class_invoke (NPObject *npobj, NPIdentifier name,
     const NPVariant *args, uint32_t argCount, NPVariant *result)
 {
   guint i;
+  GbpNPClassMethod *method;
+
+  g_return_val_if_fail (npobj != NULL, FALSE);
+  g_return_val_if_fail (name != NULL, FALSE);
+  g_return_val_if_fail (args != NULL, FALSE);
+  g_return_val_if_fail (result != NULL, FALSE);
+
 
   for (i = 0; i < methods_num; ++i) {
     if (name == method_identifiers[i]) {
+      GbpNPObject *obj = (GbpNPObject *) npobj;
+      NPPGbpData *data = (NPPGbpData *) obj->instance->pdata;
 
-      return gbp_np_class_methods[i].method(obj, name,
-          args, argCount, result);
+      method = &gbp_np_class_methods[i];
+      GST_LOG_OBJECT (data->player,
+          "calling javascript method %s", method->name);
+      return method->method(npobj, name, args, argCount, result);
     }
   }
 
-  NPN_SetException (obj, "No method with this name exists.");
+  NPN_SetException (npobj, "No method with this name exists.");
   return FALSE;
 }
 
@@ -718,17 +729,17 @@ gbp_np_class_free ()
   memset (&gbp_np_class, 0, sizeof (GbpNPClass));
 }
 
+#ifndef PLAYBACK_THREAD_POOL
 void gbp_np_class_start_object_playback_thread(NPPGbpData *data)
 {
-#ifndef PLAYBACK_THREAD_POOL
   data->playback_thread = g_thread_create (playback_thread_func,
       data->playback_queue, TRUE, NULL);
-#endif
 }
+#endif
 
 void gbp_np_class_stop_object_playback_thread(NPPGbpData *data)
 {
-  playback_command_push (PLAYBACK_CMD_QUIT, data, FALSE);
+  playback_command_push (PLAYBACK_CMD_QUIT, data, TRUE);
 }
 
 PlaybackCommand *
@@ -768,15 +779,20 @@ playback_command_push (PlaybackCommandCode code,
 {
   g_return_if_fail (data != NULL);
 
-  PlaybackCommand *command = playback_command_new (code, data, free_data);
   g_async_queue_lock (data->playback_queue);
-  g_async_queue_push_sorted_unlocked (data->playback_queue,
-      command, compare_commands, NULL);
+  if (!data->exiting) {
+    PlaybackCommand *command = playback_command_new (code, data, free_data);
+    g_async_queue_push_sorted_unlocked (data->playback_queue,
+        command, compare_commands, NULL);
 
 #ifdef PLAYBACK_THREAD_POOL
-  if (g_async_queue_length_unlocked (data->playback_queue) == 1)
-    g_thread_pool_push (playback_thread_pool, data, NULL);
+    if (g_atomic_int_exchange_and_add (&data->pending_commands, 1) == 0)
+      g_thread_pool_push (playback_thread_pool, data, NULL);
 #endif
+  } else {
+    GST_DEBUG_OBJECT (data->player, "exiting, ignoring %s",
+        playback_command_names[code]);
+  }
   g_async_queue_unlock (data->playback_queue);
 }
 
@@ -791,8 +807,8 @@ do_playback_command (PlaybackCommand *command)
   else
     player = NULL;
 
-  GST_DEBUG_OBJECT (player, "processing command %s",
-      playback_command_names[command->code]);
+  GST_DEBUG_OBJECT (player, "pool worker %p processing command %s",
+      g_thread_self(), playback_command_names[command->code]);
   switch (command->code) {
     case PLAYBACK_CMD_STOP:
       gbp_player_stop (player);
@@ -819,7 +835,7 @@ do_playback_command (PlaybackCommand *command)
 }
 
 static gboolean
-do_playback_queue (GAsyncQueue *queue, GTimeVal *timeout)
+do_playback_queue (NPPGbpData *data, GAsyncQueue *queue, GTimeVal *timeout)
 {
   PlaybackCommand *command, *flushed_command;
   gboolean exit = FALSE;
@@ -830,13 +846,27 @@ do_playback_queue (GAsyncQueue *queue, GTimeVal *timeout)
       break;
 
     exit = do_playback_command (command);
+
+    g_async_queue_lock (queue);
+#ifdef PLAYBACK_THREAD_POOL
+    if (g_atomic_int_dec_and_test (&data->pending_commands)) {
+      g_async_queue_unlock (queue);
+      break;
+    }
+#endif
     if (exit) {
-      while (g_async_queue_length (queue)) {
-        flushed_command = g_async_queue_pop (queue);
+      while (g_async_queue_length_unlocked (queue)) {
+        flushed_command = g_async_queue_pop_unlocked (queue);
         playback_command_free (flushed_command);
       }
+
+#ifdef PLAYBACK_THREAD_POOL
+      data->pending_commands = 0;
+#endif
+      data->exiting = TRUE;
     }
     
+    g_async_queue_unlock (queue);
     playback_command_free (command);
   }
 
@@ -850,7 +880,7 @@ playback_thread_func (gpointer data)
   GAsyncQueue *queue = (GAsyncQueue *) data;
 
   /* loop over the queue forever */
-  do_playback_queue (queue, NULL);
+  do_playback_queue (NULL, queue, NULL);
 
   g_async_queue_push (joinable_threads, g_thread_self ());
 
@@ -870,7 +900,9 @@ playback_thread_pool_func (gpointer push_data, gpointer pull_data)
   if (data->player != NULL)
     player = data->player;
 
-  do_playback_queue (data->playback_queue, &timeout);
+  GST_DEBUG_OBJECT (player, "pool worker %p starting", g_thread_self ());
+
+  do_playback_queue (data, data->playback_queue, &timeout);
 
   GST_DEBUG_OBJECT (player, "pool worker %p done", g_thread_self ());
 }

@@ -82,9 +82,6 @@ NPP_New (NPMIMEType plugin_type, NPP instance, uint16_t mode,
   if (uri == NULL || width == 0 || height == 0)
     return NPERR_INVALID_PARAM;
 
-  g_type_init ();
-  gst_init (NULL, NULL);
-
   player = (GbpPlayer *) g_object_new (GBP_TYPE_PLAYER, NULL);
   if (player == NULL)
     return NPERR_OUT_OF_MEMORY_ERROR;
@@ -98,8 +95,14 @@ NPP_New (NPMIMEType plugin_type, NPP instance, uint16_t mode,
   pdata->stateHandler = NULL;
   pdata->state = g_strdup ("STOPPED");
   pdata->playback_queue = g_async_queue_new ();
+#ifdef PLAYBACK_THREAD_POOL
+  pdata->pending_commands = 0;
+#endif
+  pdata->exiting = FALSE;
 
+#ifndef PLAYBACK_THREAD_POOL
   gbp_np_class_start_object_playback_thread (pdata);
+#endif
 
   g_object_connect (G_OBJECT (player), "signal::error",
       G_CALLBACK (on_error_cb), instance, NULL);
@@ -134,6 +137,8 @@ NPP_New (NPMIMEType plugin_type, NPP instance, uint16_t mode,
    * we unload and reload types. */
   NPN_SetValue (instance, NPPVpluginKeepLibraryInMemory, GINT_TO_POINTER (1));
 
+  GST_INFO_OBJECT (player, "created player");
+
   return NPERR_NO_ERROR;
 }
 
@@ -151,6 +156,8 @@ NPP_Destroy (NPP instance, NPSavedData **saved_data)
   g_signal_handlers_disconnect_matched (data->player, G_SIGNAL_MATCH_FUNC,
       0 /* sigid */, 0 /* detail */, NULL /* closure */,
       G_CALLBACK (on_error_cb), NULL /* data */);
+
+  GST_INFO_OBJECT (data->player, "destroying player");
 
   gbp_np_class_stop_object_playback_thread (data);
 
@@ -274,6 +281,8 @@ fill_plugin_vtable(NPPluginFuncs *plugin_vtable)
 NPError
 NP_Initialize (NPNetscapeFuncs *mozilla_vtable, NPPluginFuncs *plugin_vtable)
 {
+  gsize size;
+
 	if (mozilla_vtable == NULL)
 		return NPERR_INVALID_FUNCTABLE_ERROR;
 
@@ -282,8 +291,12 @@ NP_Initialize (NPNetscapeFuncs *mozilla_vtable, NPPluginFuncs *plugin_vtable)
 		return NPERR_INVALID_FUNCTABLE_ERROR;
 #endif
 
-  memcpy (&NPNFuncs, mozilla_vtable, mozilla_vtable->size);
-  NPNFuncs.size = mozilla_vtable->size;
+  g_type_init ();
+  gst_init (NULL, NULL);
+
+  size = MIN (sizeof (NPNFuncs), mozilla_vtable->size);
+  memcpy (&NPNFuncs, mozilla_vtable, size);
+  NPNFuncs.size = size;
 
   /* initialize the NPClass used for the npruntime js object */
   gbp_np_class_init ();
@@ -305,6 +318,9 @@ NPError
 NP_Shutdown ()
 {
   GSList *walk;
+
+  GST_INFO ("shutdown");
+  
   gbp_np_class_free ();
 
   g_static_mutex_lock (&pending_invoke_data_lock);

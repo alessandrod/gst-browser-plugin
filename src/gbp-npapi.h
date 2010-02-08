@@ -38,9 +38,12 @@ typedef struct _NPPGbpData
   NPObject *stateHandler;
 #ifndef PLAYBACK_THREAD_POOL
   GThread *playback_thread;
+#else
+  gint pending_commands;
 #endif
   GAsyncQueue *playback_queue;
   char *state;
+  gboolean exiting;
 } NPPGbpData;
 
 char *NP_GetMIMEDescription();
