@@ -1,0 +1,37 @@
+Installation in Firefox
+-----------------------
+Compile and move resulting .so to "$HOME/.mozilla/plugins". If the folder does not exists create it.
+
+To check if the plugin is correctly installed go to page "about:plugins" in Firefox. It should appear in the list as "GStreamer Browser Plugin".
+
+Debugging
+---------
+Launch from a shell closing previously opened browsers.
+
+GST_DEBUG=gbp*:5 <browser>
+
+e.g.: GST_DEBUG=gbp*:5 firefox
+
+Sample HTML code for testing the plugin
+---------------------------------------
+<html>
+<head>
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.3.2/jquery.js"></script>
+<script text="text/javascript">
+  $(function() {
+    var player = $("#player")[0];
+    player.uri = "file:///tmp/miaou.avi";
+    player.start();
+  });
+</script>
+</head>
+<body>
+<embed id="player" type="application/x-gbp"
+    border="5"
+    width="400"
+    height="400"
+    x-gbp-uri=""
+/>
+
+</body>
+</html>
