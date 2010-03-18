@@ -1,26 +1,49 @@
-Installation in Firefox
------------------------
-Compile and move resulting .so to "$HOME/.mozilla/plugins". If the folder does not exists create it.
+WHAT IT IS
+----------
 
-To check if the plugin is correctly installed go to page "about:plugins" in Firefox. It should appear in the list as "GStreamer Browser Plugin".
+This is GStreamer Browser Plugin, a browser plugin for multimedia playback using
+GStreamer as its backend.
 
-Debugging
+
+WHERE TO START
+--------------
+
+GStreamer Browser Plugin is at http://github.com/alessandrod/gst-browser-plugin
+
+
+COMPILING AND INSTALLING (firefox only atm)
+-------------------------------------------
+
+Run:
+
+./autogen.sh
+./configure
+make
+make bundle
+
+This will create an .xpi file. Load the file in firefox to install it. 
+Now if you type about:plugins in the address bar you should see Gst Browser
+Plugin in the list of installed plugins.
+
+
+DEBUGGING
 ---------
-Launch from a shell closing previously opened browsers.
 
-GST_DEBUG=gbp*:5 <browser>
+Close firefox if it's opened and relaunch it from the terminal with:
 
-e.g.: GST_DEBUG=gbp*:5 firefox
+GST_DEBUG=gbp*:5 firefox
 
-Sample HTML code for testing the plugin
----------------------------------------
+
+SAMPLE CODE
+-----------
+
 <html>
 <head>
-<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.3.2/jquery.js"></script>
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.4.2/jquery.js"></script>
 <script text="text/javascript">
   $(function() {
     var player = $("#player")[0];
-    player.uri = "file:///tmp/miaou.avi";
+    player.uri = "file:///path/to/file.avi";
     player.start();
   });
 </script>
