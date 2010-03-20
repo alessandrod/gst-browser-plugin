@@ -16,7 +16,7 @@
     </em:targetApplication>
     <em:name>GStreamer Browser Plugin</em:name>
     <em:creator>Alessandro Decina</em:creator>
-    <em:targetPlatform>Linux</em:targetPlatform>
+    <em:targetPlatform>@MANIFEST_PLATFORM@</em:targetPlatform>
   </Description>
 </RDF>
 

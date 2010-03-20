@@ -20,6 +20,12 @@ PKG_PROG_PKG_CONFIG
 GST_REQ=0.10.18
 PKG_CHECK_MODULES(GST, gstreamer-0.10)
 AM_CONDITIONAL([OSX_BUILD], [test x$target_vendor = xapple])
+if test "x$target_vendor" = "xapple"; then
+  MANIFEST_PLATFORM=Darwin
+else
+  MANIFEST_PLATFORM=Linux
+fi
+AC_SUBST(MANIFEST_PLATFORM)
 AC_CONFIG_FILES(
 Makefile
 src/Makefile
