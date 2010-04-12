@@ -27,12 +27,19 @@
 #include "npfunctions.h"
 #include "gbp-player.h"
 
+#ifdef XP_MACOSX
+#import <Cocoa/Cocoa.h>
+#import <Carbon/Carbon.h>
+#import <AppKit/AppKit.h>
+#endif
+
 G_BEGIN_DECLS
 
 #define NPP_INSTANCE_GET_DATA(instance) ((NPPGbpData *)(instance->pdata))
 
 typedef struct _NPPGbpData
 {
+  const char *user_agent;
   GbpPlayer *player;
   NPObject *errorHandler;
   NPObject *stateHandler;
@@ -45,6 +52,10 @@ typedef struct _NPPGbpData
   char *state;
   gboolean exiting;
   gboolean quit;
+#ifdef XP_MACOSX
+  NSView *clippingView;
+  NSOpenGLView *nsview;
+#endif
 } NPPGbpData;
 
 char *NP_GetMIMEDescription();

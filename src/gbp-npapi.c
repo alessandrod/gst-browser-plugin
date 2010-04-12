@@ -25,7 +25,7 @@
 #include "gbp-plugin.h"
 #include "gbp-np-class.h"
 #include <string.h>
-
+#include <CoreFoundation/CoreFoundation.h>
 
 typedef struct _InvokeData {
   NPP instance;
@@ -40,15 +40,22 @@ typedef struct _StateClosure {
 } StateClosure;
 
 
-void  invoke_data_free (InvokeData *invoke_data,
+void invoke_data_free (InvokeData *invoke_data,
     gboolean remove_from_pending_slist);
 void on_error_cb (GbpPlayer *player, GError *error, const char *debug,
     gpointer user_data);
 void on_state_cb (GbpPlayer *player, gpointer user_data);
+#ifdef XP_MACOSX
+void on_nsview_ready_cb (GbpPlayer *player, void *nsview, gpointer user_data);
+#endif
 
 NPError NP_GetValue (NPP instance, NPPVariable variable, void *ret_value);
 NPError NP_SetValue (NPP instance, NPNVariable variable, void *ret_value);
 
+#ifdef XP_MACOSX
+void attach_nsview_to_window (NSView *clippingView, NPWindow *npwindow,
+    const char* user_agent);
+#endif
 
 NPNetscapeFuncs NPNFuncs;
 
@@ -66,6 +73,10 @@ NPP_New (NPMIMEType plugin_type, NPP instance, uint16_t mode,
   guint width = 0, height = 0;
   int i;
   StateClosure *state1, *state2, *state3, *state4;
+#ifdef XP_MACOSX
+  NSRect r;
+  NPError err;
+#endif
 
   if (!instance)
     return NPERR_INVALID_INSTANCE_ERROR;
@@ -104,6 +115,8 @@ NPP_New (NPMIMEType plugin_type, NPP instance, uint16_t mode,
   gbp_np_class_start_object_playback_thread (pdata);
 #endif
 
+  pdata->user_agent = NPN_UserAgent(instance);
+
   g_object_connect (G_OBJECT (player), "signal::error",
       G_CALLBACK (on_error_cb), instance, NULL);
 
@@ -133,6 +146,29 @@ NPP_New (NPMIMEType plugin_type, NPP instance, uint16_t mode,
 
   instance->pdata = pdata;
 
+#ifdef XP_MACOSX
+  pdata->clippingView = [[NSView alloc] initWithFrame: r];
+  pdata->nsview = 0;
+  g_object_connect (G_OBJECT (player), "signal::nsview-ready",
+      G_CALLBACK (on_nsview_ready_cb), instance, NULL);
+
+  NPBool supportsCoreGraphics = FALSE;
+
+  err = NPN_GetValue (instance,
+      NPNVsupportsCoreGraphicsBool,
+      &supportsCoreGraphics);
+
+  if (err != NPERR_NO_ERROR || !supportsCoreGraphics)
+    return NPERR_INCOMPATIBLE_VERSION_ERROR;
+
+  err = NPN_SetValue (instance,
+      NPNVpluginDrawingModel,
+      (void*) NPDrawingModelCoreGraphics);
+
+  if (err != NPERR_NO_ERROR)
+    return NPERR_INCOMPATIBLE_VERSION_ERROR;
+#endif
+
   /* FIXME: set this to avoid the .so from being unloaded. GType breaks badly if
    * we unload and reload types. */
   NPN_SetValue (instance, NPPVpluginKeepLibraryInMemory, GINT_TO_POINTER (1));
@@ -149,6 +185,11 @@ NPP_Destroy (NPP instance, NPSavedData **saved_data)
     return NPERR_INVALID_INSTANCE_ERROR;
 
   NPPGbpData *data = (NPPGbpData *) instance->pdata;
+
+#ifdef XP_MACOSX
+  [(data->nsview) removeFromSuperview];
+  [(data->clippingView) removeFromSuperview];
+#endif
 
   g_signal_handlers_disconnect_matched (data->player, G_SIGNAL_MATCH_FUNC,
       0 /* sigid */, 0 /* detail */, NULL /* closure */,
@@ -172,10 +213,87 @@ NPP_SetWindow (NPP instance, NPWindow *window)
     return NPERR_INVALID_INSTANCE_ERROR;
 
   NPPGbpData *data = (NPPGbpData *) instance->pdata;
+
+#ifdef XP_MACOSX
+  attach_nsview_to_window (data->clippingView, window, data->user_agent);
+#else
   g_object_set (data->player, "xid", (gulong) window->window, NULL);
+#endif
 
   return NPERR_NO_ERROR;
 }
+
+#ifdef XP_MACOSX
+void add_nsview_to_clippingview_cb (void *data) {
+  NSPoint p;
+  NPPGbpData *pdata = data;
+  [pdata->clippingView addSubview:pdata->nsview];
+  [pdata->nsview setFrame: [pdata->clippingView frame]];
+  p.x = 0; p.y = 0;
+  [pdata->nsview setFrameOrigin:p];
+}
+
+void on_nsview_ready_cb (GbpPlayer *player, void *nsview, gpointer user_data) {
+  NPPGbpData *data = (NPPGbpData *) ((NPP) user_data)->pdata;
+  data->nsview = (NSOpenGLView *) nsview;
+
+  NPN_PluginThreadAsyncCall ((NPP) user_data, add_nsview_to_clippingview_cb, data);
+}
+
+void
+attach_nsview_to_window (NSView *clippingView, NPWindow *npwindow, const char *user_agent) {
+  NSSize size, clip_size;
+  NSPoint clip_p, p;
+  NSRect rect;
+  NP_CGContext *npcontext;
+  int title_height;
+  WindowRef window_ref;
+  NSWindow *nsw;
+  NSOpenGLView *view;
+  NSRect window_rect;
+
+  npcontext = (NP_CGContext *) npwindow->window;
+  window_ref = npcontext->window;
+
+  nsw = [[NSWindow alloc] initWithWindowRef:window_ref];
+  window_rect = (NSRect) [[nsw contentView] frame];
+
+  size.height = npwindow->height;
+  size.width = npwindow->width;
+
+  clip_p.x = npwindow->clipRect.left;
+  if (strncmp(user_agent, "Mozilla", strlen("Mozilla")) == 0) {
+    clip_p.y = window_rect.size.height - npwindow->clipRect.bottom;
+  } else {
+    clip_p.y = [nsw frame].size.height - npwindow->clipRect.bottom;
+  }
+  clip_size.height = npwindow->clipRect.bottom - npwindow->clipRect.top;
+  clip_size.width = npwindow->clipRect.right - npwindow->clipRect.left;
+
+  rect.origin = clip_p;
+  rect.size = clip_size;
+
+  [clippingView setFrame: rect];
+  [clippingView setAutoresizingMask: NSViewMinYMargin|NSViewMaxXMargin];
+  [clippingView setAutoresizesSubviews:FALSE];
+
+
+  title_height = [nsw frame].size.height - window_rect.size.height;
+
+  p.y = (window_rect.size.height -
+    (npwindow->y + npwindow->height - title_height)) - clip_p.y;
+
+  p.x = npwindow->x - clip_p.x;
+  
+  view = [[clippingView subviews] lastObject];
+  if (view != NULL) {
+    [view setFrameSize:size];
+    [view setFrameOrigin:p];
+  }
+
+  [[nsw contentView] addSubview: clippingView];
+}
+#endif
 
 NPError
 NPP_NewStream (NPP instance, NPMIMEType type,
@@ -239,9 +357,9 @@ NPP_SetValue (NPP instance, NPNVariable variable, void *ret_value)
 
 /* dlopen'd symbols */
 char *
-NP_GetMIMEDescription()
+NP_GetMIMEDescription ()
 {
-  char *mime = gbp_plugin_get_mime_types_description();
+  char *mime = gbp_plugin_get_mime_types_description ();
   if (mime == NULL) {
     gbp_plugin_add_mime_type ("application/x-gbp");
     mime = gbp_plugin_get_mime_types_description ();
@@ -251,30 +369,30 @@ NP_GetMIMEDescription()
 }
 
 static NPError
-fill_plugin_vtable(NPPluginFuncs *plugin_vtable)
+fill_plugin_vtable (NPPluginFuncs *plugin_vtable)
 {
   if (plugin_vtable == NULL)
     return NPERR_INVALID_FUNCTABLE_ERROR;
 
   if (plugin_vtable->size < sizeof (NPPluginFuncs))
-		return NPERR_INVALID_FUNCTABLE_ERROR;
-	
+    return NPERR_INVALID_FUNCTABLE_ERROR;
+
   plugin_vtable->size = sizeof (NPPluginFuncs);
-	plugin_vtable->version = (NP_VERSION_MAJOR << 8) + NP_VERSION_MINOR;
-	plugin_vtable->newp = NPP_New;
-	plugin_vtable->destroy = NPP_Destroy;
-	plugin_vtable->setwindow = NPP_SetWindow;
-	plugin_vtable->newstream = NPP_NewStream;
-	plugin_vtable->destroystream = NPP_DestroyStream;
-	plugin_vtable->asfile = NPP_StreamAsFile;
-	plugin_vtable->writeready = NPP_WriteReady;
-	plugin_vtable->write = NPP_Write;
-	plugin_vtable->print = NPP_Print;
-	plugin_vtable->event = NPP_HandleEvent;
-	plugin_vtable->urlnotify = NPP_URLNotify;
-	plugin_vtable->javaClass = NULL;
-	plugin_vtable->getvalue = NPP_GetValue;
-	plugin_vtable->setvalue = NPP_SetValue;
+  plugin_vtable->version = (NP_VERSION_MAJOR << 8) + NP_VERSION_MINOR;
+  plugin_vtable->newp = NPP_New;
+  plugin_vtable->destroy = NPP_Destroy;
+  plugin_vtable->setwindow = NPP_SetWindow;
+  plugin_vtable->newstream = NPP_NewStream;
+  plugin_vtable->destroystream = NPP_DestroyStream;
+  plugin_vtable->asfile = NPP_StreamAsFile;
+  plugin_vtable->writeready = NPP_WriteReady;
+  plugin_vtable->write = NPP_Write;
+  plugin_vtable->print = NPP_Print;
+  plugin_vtable->event = NPP_HandleEvent;
+  plugin_vtable->urlnotify = NPP_URLNotify;
+  plugin_vtable->javaClass = NULL;
+  plugin_vtable->getvalue = NPP_GetValue;
+  plugin_vtable->setvalue = NPP_SetValue;
 
   return NPERR_NO_ERROR;
 }
@@ -284,16 +402,35 @@ NP_Initialize (NPNetscapeFuncs *mozilla_vtable, NPPluginFuncs *plugin_vtable)
 {
   gsize size;
 
-	if (mozilla_vtable == NULL)
-		return NPERR_INVALID_FUNCTABLE_ERROR;
+#ifdef XP_MACOSX
+  GstRegistry* registry;
+  gchar gst_path[1000];
+  const gchar *base_path = 
+      "/Library/Internet Plug-Ins/gbp.plugin/Contents/Frameworks/Plugins";
+#endif
+
+  if (mozilla_vtable == NULL)
+    return NPERR_INVALID_FUNCTABLE_ERROR;
 
 #if 0
   if (mozilla_vtable->size < sizeof (NPNetscapeFuncs))
-		return NPERR_INVALID_FUNCTABLE_ERROR;
+    return NPERR_INVALID_FUNCTABLE_ERROR;
 #endif
 
   g_type_init ();
   gst_init (NULL, NULL);
+
+#ifdef XP_MACOSX
+  registry = gst_registry_get_default ();
+  gst_registry_add_path (registry, base_path);
+  gst_registry_scan_path (registry, base_path);
+
+  gst_path[0] = '\0';
+  strcat (gst_path, getenv ("HOME"));
+  strcat (gst_path, base_path);
+  gst_registry_add_path (registry, gst_path);
+  gst_registry_scan_path (registry, gst_path);
+#endif
 
   size = MIN (sizeof (NPNFuncs), mozilla_vtable->size);
   memcpy (&NPNFuncs, mozilla_vtable, size);
@@ -310,7 +447,7 @@ NP_Initialize (NPNetscapeFuncs *mozilla_vtable, NPPluginFuncs *plugin_vtable)
 }
 
 NPError
-NP_GetEntryPoints(NPPluginFuncs *plugin_vtable)
+NP_GetEntryPoints (NPPluginFuncs *plugin_vtable)
 {
   return fill_plugin_vtable (plugin_vtable);
 }
@@ -321,7 +458,7 @@ NP_Shutdown ()
   GSList *walk;
 
   GST_INFO ("shutdown");
-  
+
   gbp_np_class_free ();
 
   g_static_mutex_lock (&pending_invoke_data_lock);
@@ -476,7 +613,7 @@ void on_state_cb (GbpPlayer *player, gpointer user_data)
 
   if (data->stateHandler == NULL)
     return;
- 
+
   GST_DEBUG_OBJECT (player, "invoking state handler %p", data->stateHandler);
 
   invoke_data = invoke_data_new (instance, data->stateHandler, 1);

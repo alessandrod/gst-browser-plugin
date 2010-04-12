@@ -46,6 +46,9 @@ enum {
   SIGNAL_STOPPED,
   SIGNAL_EOS,
   SIGNAL_ERROR,
+#ifdef XP_MACOSX
+  SIGNAL_NSVIEW_READY,
+#endif
   LAST_SIGNAL
 };
 
@@ -175,6 +178,13 @@ gbp_player_class_init (GbpPlayerClass *klass)
       G_STRUCT_OFFSET (GbpPlayerClass, error), NULL, NULL,
       gbp_marshal_VOID__POINTER_STRING, G_TYPE_NONE, 2, G_TYPE_POINTER, G_TYPE_STRING);
 
+#ifdef XP_MACOSX
+  player_signals[SIGNAL_NSVIEW_READY] = g_signal_new ("nsview-ready",
+      G_TYPE_FROM_CLASS (klass), G_SIGNAL_RUN_LAST,
+      G_STRUCT_OFFSET (GbpPlayerClass, nsview_ready), NULL, NULL,
+      gbp_marshal_VOID__POINTER, G_TYPE_NONE, 1, G_TYPE_POINTER);
+#endif
+
   g_type_class_add_private (klass, sizeof (GbpPlayerPrivate));
 }
 
@@ -295,7 +305,11 @@ build_pipeline (GbpPlayer *player)
     return FALSE;
   }
 
+#ifdef XP_MACOSX
+  autovideosink = gst_element_factory_make("osxvideosink", NULL);
+#else
   autovideosink = gst_element_factory_make("autovideosink", NULL);
+#endif
   if (autovideosink == NULL) {
     GError *error = g_error_new (GST_LIBRARY_ERROR,
         GST_LIBRARY_ERROR_FAILED, "couldn't find autovideosink");
@@ -578,12 +592,26 @@ on_bus_element_cb (GstBus *bus, GstMessage *message,
   const GstStructure *structure;
   const gchar *structure_name;
   GstElement *sink;
-
+#ifdef XP_MACOSX
+  void *nsview;
+#endif
   structure = gst_message_get_structure (message);
   if (structure == NULL)
     return;
 
   structure_name = gst_structure_get_name (structure);
+
+#ifdef XP_MACOSX
+  if (!strcmp (structure_name, "have-ns-view")) {
+    nsview = g_value_get_pointer(gst_structure_get_value(
+        gst_message_get_structure(message), "nsview"));
+    g_signal_emit (player, player_signals[SIGNAL_NSVIEW_READY], 0,
+        nsview);
+  }
+  return;
+#endif
+
+
   if (!strcmp (structure_name, "prepare-xwindow-id")) {
     sink = GST_ELEMENT (message->src);
     gst_x_overlay_set_xwindow_id (GST_X_OVERLAY (sink), player->priv->xid);
