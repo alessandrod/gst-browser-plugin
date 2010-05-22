@@ -54,7 +54,7 @@ NPError NP_SetValue (NPP instance, NPNVariable variable, void *ret_value);
 
 #ifdef XP_MACOSX
 void attach_nsview_to_window (NSView *clippingView, NPWindow *npwindow,
-    const char* user_agent);
+    const char* user_agent, bool use_coregraphics);
 #endif
 
 NPNetscapeFuncs NPNFuncs;
@@ -161,9 +161,12 @@ NPP_New (NPMIMEType plugin_type, NPP instance, uint16_t mode,
   if (err != NPERR_NO_ERROR || !supportsCoreGraphics)
     return NPERR_INCOMPATIBLE_VERSION_ERROR;
 
-  err = NPN_SetValue (instance,
-      NPNVpluginDrawingModel,
-      (void*) NPDrawingModelCoreGraphics);
+  if (strstr(pdata->user_agent, "Chrome") == NULL) {
+    // If UA is Chrome we fallback to QuickDraw drawing model
+    err = NPN_SetValue (instance,
+        NPNVpluginDrawingModel,
+       (void*) NPDrawingModelCoreGraphics);
+  }
 
   if (err != NPERR_NO_ERROR)
     return NPERR_INCOMPATIBLE_VERSION_ERROR;
@@ -209,13 +212,19 @@ NPP_Destroy (NPP instance, NPSavedData **saved_data)
 NPError
 NPP_SetWindow (NPP instance, NPWindow *window)
 {
+#ifdef XP_MACOSX
+  bool use_coregraphics;
+#endif
+
   if (!instance)
     return NPERR_INVALID_INSTANCE_ERROR;
 
   NPPGbpData *data = (NPPGbpData *) instance->pdata;
 
 #ifdef XP_MACOSX
-  attach_nsview_to_window (data->clippingView, window, data->user_agent);
+  NPN_GetValue (instance, NPNVpluginDrawingModel, &use_coregraphics);
+  attach_nsview_to_window (data->clippingView, window, data->user_agent,
+      use_coregraphics);
 #else
   g_object_set (data->player, "xid", (gulong) window->window, NULL);
 #endif
@@ -241,21 +250,32 @@ void on_nsview_ready_cb (GbpPlayer *player, void *nsview, gpointer user_data) {
 }
 
 void
-attach_nsview_to_window (NSView *clippingView, NPWindow *npwindow, const char *user_agent) {
+attach_nsview_to_window (NSView *clippingView, NPWindow *npwindow,
+    const char *user_agent, bool use_coregraphics) {
+
   NSSize size, clip_size;
   NSPoint clip_p, p;
   NSRect rect;
   NP_CGContext *npcontext;
+  CGrafPtr ptr;
   int title_height;
   WindowRef window_ref;
   NSWindow *nsw;
   NSOpenGLView *view;
   NSRect window_rect;
 
-  npcontext = (NP_CGContext *) npwindow->window;
-  window_ref = npcontext->window;
+  if (use_coregraphics) {
+    npcontext = (NP_CGContext *) npwindow->window;
+    window_ref = npcontext->window;
+    nsw = [[NSWindow alloc] initWithWindowRef:window_ref];
+    // OR [NSApp windowWithWindowNumber:HIWindowGetCGWindowID( window_ref )];
+  } else {
+    ptr = ((NP_Port*) npwindow->window)->port;
+    window_ref = GetWindowFromPort(ptr);
+    nsw = [[NSWindow alloc] initWithWindowRef:window_ref];
+  }
 
-  nsw = [[NSWindow alloc] initWithWindowRef:window_ref];
+
   window_rect = (NSRect) [[nsw contentView] frame];
 
   size.height = npwindow->height;
@@ -284,7 +304,7 @@ attach_nsview_to_window (NSView *clippingView, NPWindow *npwindow, const char *u
     (npwindow->y + npwindow->height - title_height)) - clip_p.y;
 
   p.x = npwindow->x - clip_p.x;
-  
+
   view = [[clippingView subviews] lastObject];
   if (view != NULL) {
     [view setFrameSize:size];
@@ -293,7 +313,7 @@ attach_nsview_to_window (NSView *clippingView, NPWindow *npwindow, const char *u
 
   [[nsw contentView] addSubview: clippingView];
 }
-#endif
+#endif /* XP_MACOSX */
 
 NPError
 NPP_NewStream (NPP instance, NPMIMEType type,

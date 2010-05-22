@@ -13,7 +13,7 @@ nodist_libgst_browser_plugin_la_SOURCES = \
 
 libgst_browser_plugin_la_CFLAGS = $(GST_CFLAGS) -Wall -Werror
 if OSX_BUILD
-libgst_browser_plugin_la_CFLAGS += -DXP_MACOSX -ObjC -framework AppKit -framework Carbon 
+libgst_browser_plugin_la_CFLAGS += -DXP_MACOSX -ggdb -O0 -ObjC -framework AppKit -framework Carbon 
 endif
 libgst_browser_plugin_la_LIBADD = $(GST_LIBS) -lgstinterfaces-0.10
 libgst_browser_plugin_la_LDFLAGS = -avoid-version -no-undefined -dynamic
