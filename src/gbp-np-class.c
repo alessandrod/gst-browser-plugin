@@ -64,6 +64,11 @@ typedef struct
   NPPGbpData *data;
   GbpPlayer *player;
   gboolean free_data;
+  GCond *cond;
+  GMutex *lock;
+  GCond *cond1;
+  GMutex *lock1;
+  gboolean wait;
 } PlaybackCommand;
 
 static bool gbp_np_class_method_start (NPObject *obj, NPIdentifier name,
@@ -110,7 +115,7 @@ PlaybackCommand *playback_command_new (PlaybackCommandCode code,
     NPPGbpData *data, gboolean free_data);
 void playback_command_free (PlaybackCommand *command);
 void playback_command_push (PlaybackCommandCode code,
-    NPPGbpData *data, gboolean free_data);
+    NPPGbpData *data, gboolean free_data, gboolean wait);
 #ifndef PLAYBACK_THREAD_POOL
 static gpointer playback_thread_func (gpointer data);
 #else
@@ -286,7 +291,7 @@ gbp_np_class_method_start (NPObject *npobj, NPIdentifier name,
   g_return_val_if_fail (result != NULL, FALSE);
 
   NPPGbpData *data = (NPPGbpData *) obj->instance->pdata;
-  playback_command_push (PLAYBACK_CMD_START, data, FALSE);
+  playback_command_push (PLAYBACK_CMD_START, data, FALSE, FALSE);
 
   VOID_TO_NPVARIANT (*result);
   return TRUE;
@@ -304,7 +309,7 @@ gbp_np_class_method_stop (NPObject *npobj, NPIdentifier name,
   g_return_val_if_fail (result != NULL, FALSE);
 
   NPPGbpData *data = (NPPGbpData *) obj->instance->pdata;
-  playback_command_push (PLAYBACK_CMD_STOP, data, FALSE);
+  playback_command_push (PLAYBACK_CMD_STOP, data, FALSE, FALSE);
 
   VOID_TO_NPVARIANT (*result);
   return TRUE;
@@ -322,7 +327,7 @@ gbp_np_class_method_pause (NPObject *npobj, NPIdentifier name,
   g_return_val_if_fail (result != NULL, FALSE);
 
   NPPGbpData *data = (NPPGbpData *) obj->instance->pdata;
-  playback_command_push (PLAYBACK_CMD_PAUSE, data, FALSE);
+  playback_command_push (PLAYBACK_CMD_PAUSE, data, FALSE, FALSE);
 
   VOID_TO_NPVARIANT (*result);
   return TRUE;
@@ -739,7 +744,7 @@ void gbp_np_class_start_object_playback_thread(NPPGbpData *data)
 
 void gbp_np_class_stop_object_playback_thread(NPPGbpData *data)
 {
-  playback_command_push (PLAYBACK_CMD_QUIT, data, TRUE);
+  playback_command_push (PLAYBACK_CMD_QUIT, data, TRUE, TRUE);
 }
 
 PlaybackCommand *
@@ -754,6 +759,11 @@ playback_command_new (PlaybackCommandCode code,
   command->code = code;
   command->data = data;
   command->free_data = free_data;
+  command->cond = g_cond_new ();
+  command->lock = g_mutex_new ();
+  command->cond1 = g_cond_new ();
+  command->lock1 = g_mutex_new ();
+  command->wait = FALSE;
 
   return command;
 }
@@ -770,30 +780,63 @@ playback_command_free (PlaybackCommand *command)
     npp_gbp_data_free (command->data);
   command->data = NULL;
 
+  g_cond_free (command->cond);
+  g_mutex_free (command->lock);
+  g_cond_free (command->cond1);
+  g_mutex_free (command->lock1);
+
   g_free (command);
 }
 
 void
 playback_command_push (PlaybackCommandCode code,
-    NPPGbpData *data, gboolean free_data)
+    NPPGbpData *data, gboolean free_data, gboolean wait)
 {
+  PlaybackCommand *command = NULL;
   g_return_if_fail (data != NULL);
 
   g_async_queue_lock (data->playback_queue);
   if (!data->exiting) {
-    PlaybackCommand *command = playback_command_new (code, data, free_data);
+    command = playback_command_new (code, data, free_data);
+    command->wait = wait;
+    if (command->wait)
+      g_mutex_lock (command->lock);
+    
+
     g_async_queue_push_sorted_unlocked (data->playback_queue,
         command, compare_commands, NULL);
 
 #ifdef PLAYBACK_THREAD_POOL
-    if (g_atomic_int_exchange_and_add (&data->pending_commands, 1) == 0)
+    if (g_atomic_int_exchange_and_add (&data->pending_commands, 1) == 0) {
+      GST_INFO_OBJECT (data->player, "no pending commands, pushing worker");
       g_thread_pool_push (playback_thread_pool, data, NULL);
+    }
 #endif
   } else {
-    GST_DEBUG_OBJECT (data->player, "exiting, ignoring %s",
+    GST_INFO_OBJECT (data->player, "exiting, ignoring %s",
         playback_command_names[code]);
   }
   g_async_queue_unlock (data->playback_queue);
+
+  if (command && wait) {
+    GbpPlayer *player = g_object_ref (data->player);
+
+    GST_DEBUG_OBJECT (player, "waiting for command %s to begin",
+        playback_command_names[code]);
+    g_cond_wait (command->cond, command->lock);
+    g_cond_signal (command->cond);
+    GST_DEBUG_OBJECT (player, "command %s started",
+        playback_command_names[code]);
+
+    GST_DEBUG_OBJECT (player, "waiting for command %s to finish",
+        playback_command_names[code]);
+    g_cond_wait (command->cond, command->lock);
+    g_cond_signal (command->cond);
+    g_mutex_unlock (command->lock);
+    GST_DEBUG_OBJECT (player, "command %s finished",
+        playback_command_names[code]);
+    g_object_unref (player);
+  }
 }
 
 static gboolean
@@ -807,8 +850,21 @@ do_playback_command (PlaybackCommand *command)
   else
     player = NULL;
 
+  if (command->wait) {
+    GST_INFO_OBJECT (player, "2 A");
+    g_mutex_lock (command->lock);
+    GST_INFO_OBJECT (player, "2 B");
+    g_cond_signal (command->cond);
+    GST_INFO_OBJECT (player, "2 C");
+    g_cond_wait (command->cond, command->lock);
+    GST_INFO_OBJECT (player, "3 D");
+    g_mutex_unlock (command->lock);
+    GST_INFO_OBJECT (player, "3 E");
+  }
+
   GST_DEBUG_OBJECT (player, "pool worker %p processing command %s",
       g_thread_self(), playback_command_names[command->code]);
+
   switch (command->code) {
     case PLAYBACK_CMD_STOP:
       gbp_player_stop (player);
@@ -830,6 +886,19 @@ do_playback_command (PlaybackCommand *command)
     default:
       g_warn_if_reached ();
   }
+  GST_DEBUG_OBJECT (player, "pool worker %p processed command %s",
+      g_thread_self(), playback_command_names[command->code]);
+
+  /* signal in case someone is waiting */
+  if (command->wait) {
+    GST_INFO_OBJECT (player, "2 F");
+    g_mutex_lock (command->lock);
+    GST_INFO_OBJECT (player, "2 G");
+    g_cond_signal (command->cond);
+    GST_INFO_OBJECT (player, "2 H");
+    g_cond_wait (command->cond, command->lock);
+    g_mutex_unlock (command->lock);
+  }
 
   return exit;
 }
@@ -848,23 +917,19 @@ do_playback_queue (NPPGbpData *data, GAsyncQueue *queue, GTimeVal *timeout)
     exit = do_playback_command (command);
 
     g_async_queue_lock (queue);
-#ifdef PLAYBACK_THREAD_POOL
-    if (g_atomic_int_dec_and_test (&data->pending_commands)) {
-      g_async_queue_unlock (queue);
-      break;
-    }
-#endif
     if (exit) {
       while (g_async_queue_length_unlocked (queue)) {
         flushed_command = g_async_queue_pop_unlocked (queue);
         playback_command_free (flushed_command);
       }
 
-#ifdef PLAYBACK_THREAD_POOL
-      data->pending_commands = 0;
-#endif
       data->exiting = TRUE;
     }
+
+#ifdef PLAYBACK_THREAD_POOL
+    if (g_atomic_int_dec_and_test (&data->pending_commands))
+      ;
+#endif
     
     g_async_queue_unlock (queue);
     playback_command_free (command);
@@ -900,11 +965,13 @@ playback_thread_pool_func (gpointer push_data, gpointer pull_data)
   if (data->player != NULL)
     player = data->player;
 
-  GST_DEBUG_OBJECT (player, "pool worker %p starting", g_thread_self ());
+  GST_DEBUG_OBJECT (player, "pool worker %p starting on player %p",
+      g_thread_self (), player);
 
   do_playback_queue (data, data->playback_queue, &timeout);
 
-  GST_DEBUG_OBJECT (player, "pool worker %p done", g_thread_self ());
+  GST_DEBUG_OBJECT (player, "pool worker %p done on player %p",
+      g_thread_self (), player);
 }
 #endif
 
