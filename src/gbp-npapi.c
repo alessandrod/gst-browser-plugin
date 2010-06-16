@@ -494,9 +494,11 @@ npp_gbp_data_free (NPPGbpData *data)
     NPN_ReleaseObject (data->errorHandler);
   data->errorHandler = NULL;
 
+#if 0
   if (data->stateHandler != NULL)
     NPN_ReleaseObject (data->stateHandler);
   data->stateHandler = NULL;
+#endif
 
   if (data->state)
     g_free (data->state);
