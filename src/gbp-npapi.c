@@ -30,6 +30,9 @@
 #endif
 #ifdef XP_WIN
 #include <windows.h>
+#else
+#include <dlfcn.h>
+#include <libgen.h>
 #endif
 
 typedef struct _InvokeData {
@@ -427,27 +430,50 @@ fill_plugin_vtable (NPPluginFuncs *plugin_vtable)
   return NPERR_NO_ERROR;
 }
 
-NPError OSCALL
-NP_Initialize (NPNetscapeFuncs *mozilla_vtable
-#ifndef XP_WIN
-    , NPPluginFuncs *plugin_vtable
-#endif
-) {
-  gsize size;
-  GstRegistry* registry;
-#ifdef XP_MACOSX
-  gchar gst_path[1000];
-  const gchar *base_path = 
-      "/Library/Internet Plug-Ins/gbp.plugin/Contents/Frameworks/Plugins";
-#endif
+char * get_library_path () {
+  char *dir;
 #ifdef XP_WIN
   MEMORY_BASIC_INFORMATION mbi;
   HMODULE hmod;
   char module_name[1024];
+  char path[1024];
   char drive[5];
-  char dir[1024];
   char fname[256];
   char ext[5];
+#else
+  Dl_info info;
+#endif
+
+#ifdef XP_WIN
+  VirtualQuery ((const void *) get_library_path, &mbi, sizeof(mbi));
+  hmod = (HMODULE) mbi.AllocationBase;
+
+  GetModuleFileName(hmod, module_name, sizeof(module_name));
+  dir = calloc (1, 1024);
+  _splitpath (module_name, drive, path, fname, ext);
+  strcat (dir, drive);
+  strcat (dir, path);
+#else
+  dladdr ((const void *) get_library_path, &info);
+  dir = dirname ((char *) info.dli_fname);
+#endif
+
+  return dir;
+}
+
+NPError OSCALL
+#ifdef XP_WIN
+NP_Initialize (NPNetscapeFuncs *mozilla_vtable)
+#else
+NP_Initialize (NPNetscapeFuncs *mozilla_vtable, NPPluginFuncs *plugin_vtable)
+#endif
+{
+  gsize size;
+  GstRegistry* registry;
+  gchar *library_path;
+
+#ifdef XP_MACOSX
+  gchar gst_path[1000];
 #endif
 
   if (mozilla_vtable == NULL)
@@ -458,33 +484,24 @@ NP_Initialize (NPNetscapeFuncs *mozilla_vtable
     return NPERR_INVALID_FUNCTABLE_ERROR;
 #endif
 
+  library_path = get_library_path();
+#ifdef XP_WIN
+  SetDllDirectory (library_path);
+#endif
+
   g_type_init ();
   gst_init (NULL, NULL);
   registry = gst_registry_get_default ();
 
-#ifdef XP_MACOSX
-  gst_registry_add_path (registry, base_path);
-  gst_registry_scan_path (registry, base_path);
+  gst_registry_add_path (registry, library_path);
+  gst_registry_scan_path (registry, library_path);
 
+#ifdef XP_MACOSX
   gst_path[0] = '\0';
-  strcat (gst_path, getenv ("HOME"));
-  strcat (gst_path, base_path);
+  strcat (gst_path, library_path);
+  strcat (gst_path, "/../Frameworks/Plugins/");
   gst_registry_add_path (registry, gst_path);
   gst_registry_scan_path (registry, gst_path);
-#endif
-
-#ifdef XP_WIN
-  VirtualQuery ((const void *) fill_plugin_vtable, &mbi, sizeof(mbi));
-  hmod = (HMODULE) mbi.AllocationBase;
-
-  if (GetModuleFileName(hmod, module_name, sizeof(module_name))) {
-    _splitpath(module_name, drive, dir, fname, ext);
-    _makepath(module_name, drive, dir, NULL, NULL);
-    SetDllDirectory(module_name);
-    g_print("\n\nECCOLO! : %s\n\n", module_name); 
-    gst_registry_add_path (registry, module_name);
-    gst_registry_scan_path (registry, module_name);
-  }
 #endif
 
   size = MIN (sizeof (NPNFuncs), mozilla_vtable->size);
