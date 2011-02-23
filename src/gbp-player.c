@@ -354,9 +354,8 @@ build_pipeline (GbpPlayer *player)
       "signal::element-added", autovideosink_element_added_cb, player,
       NULL);
 
-  if (player->priv->volume)
-    g_object_set (player->priv->pipeline,
-        "volume", player->priv->volume, NULL);
+  g_object_set (player->priv->pipeline,
+      "volume", player->priv->volume, NULL);
 
   player->priv->have_pipeline = TRUE;
   return TRUE;
