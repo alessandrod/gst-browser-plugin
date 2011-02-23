@@ -455,6 +455,7 @@ gbp_player_seek (GbpPlayer *player, GstClockTime position, gdouble rate)
 {
   GstFormat format;
   GstSeekFlags seek_flags;
+  guint64 start, stop;
 
   g_return_val_if_fail (player != NULL, FALSE);
 
@@ -464,8 +465,16 @@ gbp_player_seek (GbpPlayer *player, GstClockTime position, gdouble rate)
   format = GST_FORMAT_TIME;
   seek_flags = GST_SEEK_FLAG_FLUSH;
 
+  if (rate > 0) {
+    start = position;
+    stop = -1;
+  } else {
+    start = -1;
+    stop = position;
+  }
+
   return gst_element_seek (GST_ELEMENT (player->priv->pipeline), rate,
-      format, seek_flags, GST_SEEK_TYPE_SET, position, GST_SEEK_TYPE_NONE, 0);
+      format, seek_flags, GST_SEEK_TYPE_SET, start, GST_SEEK_TYPE_SET, stop);
 }
 
 void
