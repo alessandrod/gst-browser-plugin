@@ -120,7 +120,7 @@ NPP_New (NPMIMEType plugin_type, NPP instance, uint16_t mode,
   state1->state = "PLAYING";
   state2->state = "PAUSED";
   state3->state = "STOPPED";
-  state4->state = "UNEXPECTED_EOS";
+  state4->state = "EOS";
 
   g_signal_connect_data (player, "playing",
       G_CALLBACK(on_state_cb), state1, (GClosureNotify) g_free, 0);
@@ -128,7 +128,7 @@ NPP_New (NPMIMEType plugin_type, NPP instance, uint16_t mode,
       G_CALLBACK(on_state_cb), state2, (GClosureNotify) g_free, 0);
   g_signal_connect_data (player, "stopped",
       G_CALLBACK(on_state_cb), state3, (GClosureNotify) g_free, 0);
-  g_signal_connect_data (player, "unexpected-eos",
+  g_signal_connect_data (player, "eos",
       G_CALLBACK(on_state_cb), state4, (GClosureNotify) g_free, 0);
 
   instance->pdata = pdata;

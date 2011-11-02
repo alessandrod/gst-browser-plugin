@@ -44,7 +44,7 @@ enum {
   SIGNAL_PLAYING,
   SIGNAL_PAUSED,
   SIGNAL_STOPPED,
-  SIGNAL_UNEXPECTED_EOS,
+  SIGNAL_EOS,
   SIGNAL_ERROR,
   LAST_SIGNAL
 };
@@ -165,9 +165,9 @@ gbp_player_class_init (GbpPlayerClass *klass)
       G_STRUCT_OFFSET (GbpPlayerClass, stopped), NULL, NULL,
       gbp_marshal_VOID__VOID, G_TYPE_NONE, 0);
 
-  player_signals[SIGNAL_UNEXPECTED_EOS] = g_signal_new ("unexpected-eos",
+  player_signals[SIGNAL_EOS] = g_signal_new ("eos",
       G_TYPE_FROM_CLASS (klass), G_SIGNAL_RUN_LAST,
-      G_STRUCT_OFFSET (GbpPlayerClass, unexpected_eos), NULL, NULL,
+      G_STRUCT_OFFSET (GbpPlayerClass, eos), NULL, NULL,
       gbp_marshal_VOID__VOID, G_TYPE_NONE, 0);
 
   player_signals[SIGNAL_ERROR] = g_signal_new ("error",
@@ -554,17 +554,8 @@ static void
 on_bus_eos_cb (GstBus *bus, GstMessage *message,
     GbpPlayer *player)
 {
-  gboolean shutting_down;
-  GstState current, pending;
-
-  gst_element_get_state (GST_ELEMENT (message->src), &current, &pending, 0);
-  shutting_down = (current <= GST_STATE_READY ||
-      (pending != GST_STATE_VOID_PENDING && pending <= GST_STATE_READY));
   player->priv->reset_state = TRUE;
-  g_signal_emit (player, player_signals[SIGNAL_STOPPED], 0);
-
-  if (!shutting_down)
-    g_signal_emit (player, player_signals[SIGNAL_UNEXPECTED_EOS], 0);
+  g_signal_emit (player, player_signals[SIGNAL_EOS], 0);
 }
 
 static void
