@@ -490,11 +490,11 @@ void on_state_cb (GbpPlayer *player, gpointer user_data)
 void
 npp_gbp_data_free (NPPGbpData *data)
 {
+#if 0
   if (data->errorHandler != NULL)
     NPN_ReleaseObject (data->errorHandler);
   data->errorHandler = NULL;
 
-#if 0
   if (data->stateHandler != NULL)
     NPN_ReleaseObject (data->stateHandler);
   data->stateHandler = NULL;
