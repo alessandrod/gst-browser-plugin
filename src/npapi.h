@@ -42,6 +42,11 @@
 #pragma pack(1)
 #endif
 
+#ifdef XP_WIN
+#include <windows.h>
+typedef int bool;
+#endif
+
 #include "nptypes.h"
 
 #if defined (__OS2__) || defined (OS2)

@@ -25,7 +25,12 @@
 #include "gbp-plugin.h"
 #include "gbp-np-class.h"
 #include <string.h>
+#ifdef XP_MACOSX
 #include <CoreFoundation/CoreFoundation.h>
+#endif
+#ifdef XP_WIN
+#include <windows.h>
+#endif
 
 typedef struct _InvokeData {
   NPP instance;
@@ -422,16 +427,27 @@ fill_plugin_vtable (NPPluginFuncs *plugin_vtable)
   return NPERR_NO_ERROR;
 }
 
-NPError
-NP_Initialize (NPNetscapeFuncs *mozilla_vtable, NPPluginFuncs *plugin_vtable)
-{
+NPError OSCALL
+NP_Initialize (NPNetscapeFuncs *mozilla_vtable
+#ifndef XP_WIN
+    , NPPluginFuncs *plugin_vtable
+#endif
+) {
   gsize size;
-
-#ifdef XP_MACOSX
   GstRegistry* registry;
+#ifdef XP_MACOSX
   gchar gst_path[1000];
   const gchar *base_path = 
       "/Library/Internet Plug-Ins/gbp.plugin/Contents/Frameworks/Plugins";
+#endif
+#ifdef XP_WIN
+  MEMORY_BASIC_INFORMATION mbi;
+  HMODULE hmod;
+  char module_name[1024];
+  char drive[5];
+  char dir[1024];
+  char fname[256];
+  char ext[5];
 #endif
 
   if (mozilla_vtable == NULL)
@@ -444,9 +460,9 @@ NP_Initialize (NPNetscapeFuncs *mozilla_vtable, NPPluginFuncs *plugin_vtable)
 
   g_type_init ();
   gst_init (NULL, NULL);
+  registry = gst_registry_get_default ();
 
 #ifdef XP_MACOSX
-  registry = gst_registry_get_default ();
   gst_registry_add_path (registry, base_path);
   gst_registry_scan_path (registry, base_path);
 
@@ -457,6 +473,20 @@ NP_Initialize (NPNetscapeFuncs *mozilla_vtable, NPPluginFuncs *plugin_vtable)
   gst_registry_scan_path (registry, gst_path);
 #endif
 
+#ifdef XP_WIN
+  VirtualQuery ((const void *) fill_plugin_vtable, &mbi, sizeof(mbi));
+  hmod = (HMODULE) mbi.AllocationBase;
+
+  if (GetModuleFileName(hmod, module_name, sizeof(module_name))) {
+    _splitpath(module_name, drive, dir, fname, ext);
+    _makepath(module_name, drive, dir, NULL, NULL);
+    SetDllDirectory(module_name);
+    g_print("\n\nECCOLO! : %s\n\n", module_name); 
+    gst_registry_add_path (registry, module_name);
+    gst_registry_scan_path (registry, module_name);
+  }
+#endif
+
   size = MIN (sizeof (NPNFuncs), mozilla_vtable->size);
   memcpy (&NPNFuncs, mozilla_vtable, size);
   NPNFuncs.size = size;
@@ -465,13 +495,15 @@ NP_Initialize (NPNetscapeFuncs *mozilla_vtable, NPPluginFuncs *plugin_vtable)
   gbp_np_class_init ();
 
 #ifndef XP_MACOSX
+#ifndef XP_WIN
   return fill_plugin_vtable (plugin_vtable);
+#endif
 #endif
 
   return NPERR_NO_ERROR;
 }
 
-NPError
+NPError OSCALL
 NP_GetEntryPoints (NPPluginFuncs *plugin_vtable)
 {
   return fill_plugin_vtable (plugin_vtable);

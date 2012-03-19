@@ -59,9 +59,13 @@ typedef struct _NPPGbpData
 } NPPGbpData;
 
 char *NP_GetMIMEDescription();
-NPError NP_Initialize (NPNetscapeFuncs *mozilla_vtable, NPPluginFuncs *plugin_vtable);
-NPError NP_GetEntryPoints (NPPluginFuncs *plugin_vtable);
-NPError NP_Shutdown ();
+#ifndef XP_WIN
+NPError OSCALL NP_Initialize (NPNetscapeFuncs *mozilla_vtable, NPPluginFuncs *plugin_vtable);
+#else
+NPError OSCALL NP_Initialize (NPNetscapeFuncs *mozilla_vtable);
+#endif
+NPError OSCALL NP_GetEntryPoints (NPPluginFuncs *plugin_vtable);
+NPError OSCALL NP_Shutdown ();
 NPError NP_GetValue (NPP instance, NPPVariable variable, void *value);
 NPError NP_SetValue (NPP instance, NPNVariable variable, void *ret_value);
 void npp_gbp_data_free (NPPGbpData *data);

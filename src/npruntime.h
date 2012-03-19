@@ -69,7 +69,6 @@
 extern "C" {
 #endif
 
-#include "nptypes.h"
 
 /*
     This API is used to facilitate binding code written in C to script
