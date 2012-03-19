@@ -53,9 +53,6 @@ void invoke_data_free (InvokeData *invoke_data,
 void on_error_cb (GbpPlayer *player, GError *error, const char *debug,
     gpointer user_data);
 void on_state_cb (GbpPlayer *player, gpointer user_data);
-#ifdef XP_MACOSX
-void on_nsview_ready_cb (GbpPlayer *player, void *nsview, gpointer user_data);
-#endif
 
 NPError NP_GetValue (NPP instance, NPPVariable variable, void *ret_value);
 NPError NP_SetValue (NPP instance, NPNVariable variable, void *ret_value);
@@ -156,9 +153,7 @@ NPP_New (NPMIMEType plugin_type, NPP instance, uint16_t mode,
 
 #ifdef XP_MACOSX
   pdata->clippingView = [[NSView alloc] initWithFrame: r];
-  pdata->nsview = 0;
-  g_object_connect (G_OBJECT (player), "signal::nsview-ready",
-      G_CALLBACK (on_nsview_ready_cb), instance, NULL);
+  g_object_set (player, "xid", (gulong) pdata->clippingView, NULL);
 
   NPBool supportsCoreGraphics = FALSE;
 
@@ -168,13 +163,16 @@ NPP_New (NPMIMEType plugin_type, NPP instance, uint16_t mode,
 
   if (err != NPERR_NO_ERROR || !supportsCoreGraphics)
     return NPERR_INCOMPATIBLE_VERSION_ERROR;
-
+  
+  pdata->use_coregraphics = FALSE;
+  
   if (strstr(pdata->user_agent, "Chrome") == NULL) {
-    // If UA is Chrome we fallback to QuickDraw drawing model
     err = NPN_SetValue (instance,
         NPNVpluginDrawingModel,
        (void*) NPDrawingModelCoreGraphics);
+    pdata->use_coregraphics = TRUE;
   }
+  // else If UA is Chrome we fallback to QuickDraw drawing model
 
   if (err != NPERR_NO_ERROR)
     return NPERR_INCOMPATIBLE_VERSION_ERROR;
@@ -198,7 +196,6 @@ NPP_Destroy (NPP instance, NPSavedData **saved_data)
   NPPGbpData *data = (NPPGbpData *) instance->pdata;
 
 #ifdef XP_MACOSX
-  [(data->nsview) removeFromSuperview];
   [(data->clippingView) removeFromSuperview];
 #endif
 
@@ -220,19 +217,14 @@ NPP_Destroy (NPP instance, NPSavedData **saved_data)
 NPError
 NPP_SetWindow (NPP instance, NPWindow *window)
 {
-#ifdef XP_MACOSX
-  bool use_coregraphics;
-#endif
-
   if (!instance)
     return NPERR_INVALID_INSTANCE_ERROR;
 
   NPPGbpData *data = (NPPGbpData *) instance->pdata;
 
 #ifdef XP_MACOSX
-  NPN_GetValue (instance, NPNVpluginDrawingModel, &use_coregraphics);
   attach_nsview_to_window (data->clippingView, window, data->user_agent,
-      use_coregraphics);
+      data->use_coregraphics);
 #else
   g_object_set (data->player, "xid", (gulong) window->window, NULL);
 #endif
@@ -241,22 +233,6 @@ NPP_SetWindow (NPP instance, NPWindow *window)
 }
 
 #ifdef XP_MACOSX
-void add_nsview_to_clippingview_cb (void *data) {
-  NSPoint p;
-  NPPGbpData *pdata = data;
-  [pdata->clippingView addSubview:pdata->nsview];
-  [pdata->nsview setFrame: [pdata->clippingView frame]];
-  p.x = 0; p.y = 0;
-  [pdata->nsview setFrameOrigin:p];
-}
-
-void on_nsview_ready_cb (GbpPlayer *player, void *nsview, gpointer user_data) {
-  NPPGbpData *data = (NPPGbpData *) ((NPP) user_data)->pdata;
-  data->nsview = (NSOpenGLView *) nsview;
-
-  NPN_PluginThreadAsyncCall ((NPP) user_data, add_nsview_to_clippingview_cb, data);
-}
-
 void
 attach_nsview_to_window (NSView *clippingView, NPWindow *npwindow,
     const char *user_agent, bool use_coregraphics) {

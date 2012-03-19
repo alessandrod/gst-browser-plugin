@@ -60,9 +60,6 @@ struct _GbpPlayerClass {
   void (*stopped)(GbpPlayer *player);
   void (*eos)(GbpPlayer *player);
   void (*error)(GbpPlayer *player, GError *error, const char *debug);
-#ifdef XP_MACOSX
-void (*nsview_ready)(GbpPlayer *player, void * nsview);
-#endif
 };
 
 GType gbp_player_get_type(void);

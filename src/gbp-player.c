@@ -46,9 +46,6 @@ enum {
   SIGNAL_STOPPED,
   SIGNAL_EOS,
   SIGNAL_ERROR,
-#ifdef XP_MACOSX
-  SIGNAL_NSVIEW_READY,
-#endif
   LAST_SIGNAL
 };
 
@@ -177,13 +174,6 @@ gbp_player_class_init (GbpPlayerClass *klass)
       G_TYPE_FROM_CLASS (klass), G_SIGNAL_RUN_LAST,
       G_STRUCT_OFFSET (GbpPlayerClass, error), NULL, NULL,
       gbp_marshal_VOID__POINTER_STRING, G_TYPE_NONE, 2, G_TYPE_POINTER, G_TYPE_STRING);
-
-#ifdef XP_MACOSX
-  player_signals[SIGNAL_NSVIEW_READY] = g_signal_new ("nsview-ready",
-      G_TYPE_FROM_CLASS (klass), G_SIGNAL_RUN_LAST,
-      G_STRUCT_OFFSET (GbpPlayerClass, nsview_ready), NULL, NULL,
-      gbp_marshal_VOID__POINTER, G_TYPE_NONE, 1, G_TYPE_POINTER);
-#endif
 
   g_type_class_add_private (klass, sizeof (GbpPlayerPrivate));
 }
@@ -592,9 +582,6 @@ on_bus_element_cb (GstBus *bus, GstMessage *message,
   const GstStructure *structure;
   const gchar *structure_name;
   GstElement *sink;
-#ifdef XP_MACOSX
-  void *nsview;
-#endif
   structure = gst_message_get_structure (message);
   if (structure == NULL)
     return;
@@ -603,14 +590,12 @@ on_bus_element_cb (GstBus *bus, GstMessage *message,
 
 #ifdef XP_MACOSX
   if (!strcmp (structure_name, "have-ns-view")) {
-    nsview = g_value_get_pointer(gst_structure_get_value(
-        gst_message_get_structure(message), "nsview"));
-    g_signal_emit (player, player_signals[SIGNAL_NSVIEW_READY], 0,
-        nsview);
+    if (player->priv->xid != 0)
+      gst_x_overlay_set_xwindow_id (GST_X_OVERLAY (GST_ELEMENT (message->src)),
+          (gulong) player->priv->xid);
+    return;
   }
-  return;
 #endif
-
 
   if (!strcmp (structure_name, "prepare-xwindow-id")) {
     sink = GST_ELEMENT (message->src);

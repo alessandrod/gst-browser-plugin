@@ -54,7 +54,7 @@ typedef struct _NPPGbpData
   gboolean quit;
 #ifdef XP_MACOSX
   NSView *clippingView;
-  NSOpenGLView *nsview;
+  gboolean use_coregraphics;
 #endif
 } NPPGbpData;
 
