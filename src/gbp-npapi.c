@@ -257,23 +257,28 @@ attach_nsview_to_window (NSView *clippingView, NPWindow *npwindow,
   NSPoint clip_p, p;
   NSRect rect;
   NP_CGContext *npcontext;
-  CGrafPtr ptr;
   int title_height;
   WindowRef window_ref;
   NSWindow *nsw;
   NSOpenGLView *view;
   NSRect window_rect;
+#ifndef __LP64__
+  CGrafPtr ptr;
+#endif
 
   if (use_coregraphics) {
     npcontext = (NP_CGContext *) npwindow->window;
     window_ref = npcontext->window;
     nsw = [[NSWindow alloc] initWithWindowRef:window_ref];
     // OR [NSApp windowWithWindowNumber:HIWindowGetCGWindowID( window_ref )];
-  } else {
+  }
+#ifndef __LP64__
+  else {
     ptr = ((NP_Port*) npwindow->window)->port;
     window_ref = GetWindowFromPort(ptr);
     nsw = [[NSWindow alloc] initWithWindowRef:window_ref];
   }
+#endif
 
 
   window_rect = (NSRect) [[nsw contentView] frame];
