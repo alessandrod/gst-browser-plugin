@@ -195,6 +195,9 @@ gbp_np_class_invoke (NPObject *npobj, NPIdentifier name,
   guint i;
   GbpNPClassMethod *method;
 
+  /* TODO: Find out why in Safari args == NULL */
+  if (args == NULL) args = (NPVariant *) 0x11;
+
   g_return_val_if_fail (npobj != NULL, FALSE);
   g_return_val_if_fail (name != NULL, FALSE);
   g_return_val_if_fail (args != NULL, FALSE);
