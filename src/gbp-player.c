@@ -30,6 +30,8 @@ GST_DEBUG_CATEGORY (gbp_player_debug);
 
 G_DEFINE_TYPE (GbpPlayer, gbp_player, GST_TYPE_OBJECT);
 
+#define DEFAULT_VIDEO_SINK "autovideosink"
+
 enum {
   PROP_0,
   PROP_URI,
@@ -37,7 +39,8 @@ enum {
   PROP_WIDTH,
   PROP_HEIGHT,
   PROP_VOLUME,
-  PROP_HAVE_AUDIO
+  PROP_HAVE_AUDIO,
+  PROP_VIDEO_SINK
 };
 
 enum {
@@ -65,6 +68,7 @@ struct _GbpPlayerPrivate
   gboolean reset_state;
   gdouble volume;
   gboolean have_audio;
+  char *video_sink;
 };
 
 static guint player_signals[LAST_SIGNAL];
@@ -145,10 +149,14 @@ gbp_player_class_init (GbpPlayerClass *klass)
   g_object_class_install_property (gobject_class, PROP_VOLUME,
       g_param_spec_double ("volume", "Volume", "Volume",
           0.0, G_MAXDOUBLE, 1.0, flags));
-  
+
   g_object_class_install_property (gobject_class, PROP_HAVE_AUDIO,
       g_param_spec_boolean ("have-audio", "Have Audio", "Have Audio",
           TRUE, flags));
+
+  g_object_class_install_property (gobject_class, PROP_VIDEO_SINK,
+      g_param_spec_string ("video-sink", "Video-Sink",
+        "Preferred videosink element name", DEFAULT_VIDEO_SINK, flags));
 
   player_signals[SIGNAL_PLAYING] = g_signal_new ("playing",
       G_TYPE_FROM_CLASS (klass), G_SIGNAL_RUN_LAST,
@@ -216,6 +224,9 @@ gbp_player_get_property (GObject * object, guint prop_id,
     case PROP_HAVE_AUDIO:
       g_value_set_boolean (value, player->priv->have_audio);
       break;
+    case PROP_VIDEO_SINK:
+      g_value_set_string (value, player->priv->video_sink);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
   }
@@ -261,6 +272,9 @@ gbp_player_set_property (GObject * object, guint prop_id,
       }
 
       break;
+    case PROP_VIDEO_SINK:
+      player->priv->video_sink = g_value_dup_string (value);
+      break;
     }
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -295,11 +309,8 @@ build_pipeline (GbpPlayer *player)
     return FALSE;
   }
 
-#ifdef XP_MACOSX
-  autovideosink = gst_element_factory_make("osxvideosink", NULL);
-#else
-  autovideosink = gst_element_factory_make("autovideosink", NULL);
-#endif
+  autovideosink = gst_element_factory_make (player->priv->video_sink, NULL);
+
   if (autovideosink == NULL) {
     GError *error = g_error_new (GST_LIBRARY_ERROR,
         GST_LIBRARY_ERROR_FAILED, "couldn't find autovideosink");
@@ -340,7 +351,7 @@ build_pipeline (GbpPlayer *player)
 
   g_object_set (G_OBJECT (player->priv->pipeline), "video-sink", autovideosink, NULL);
   g_object_set (G_OBJECT (player->priv->pipeline), "audio-sink", audiosink, NULL);
-  
+
   player->priv->bus = gst_pipeline_get_bus (player->priv->pipeline);
   gst_bus_enable_sync_message_emission (player->priv->bus);
   g_object_connect (player->priv->bus,
@@ -526,7 +537,7 @@ autovideosink_element_added_cb (GstElement *autovideosink,
   klass = G_OBJECT_GET_CLASS (element);
   if (!g_object_class_find_property (klass, "double-buffer"))
     return;
-  
+
   g_object_set (G_OBJECT (element), "double-buffer", FALSE, NULL);
 }
 
@@ -589,11 +600,12 @@ on_bus_element_cb (GstBus *bus, GstMessage *message,
   structure_name = gst_structure_get_name (structure);
 
 #ifdef XP_MACOSX
-  if (!strcmp (structure_name, "have-ns-view") == 0 ||
+  if (!strcmp (structure_name, "have-ns-view") ||
       !strcmp (structure_name, "have-ca-layer")) {
-    if (player->priv->xid != 0)
+    if (player->priv->xid != 0) {
       gst_x_overlay_set_xwindow_id (GST_X_OVERLAY (GST_ELEMENT (message->src)),
           (gulong) player->priv->xid);
+    }
     return;
   }
 #endif
