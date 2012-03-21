@@ -152,10 +152,9 @@ NPP_New (NPMIMEType plugin_type, NPP instance, uint16_t mode,
   instance->pdata = pdata;
 
 #ifdef XP_MACOSX
-  pdata->clippingView = [[NSView alloc] initWithFrame: r];
-  g_object_set (player, "xid", (gulong) pdata->clippingView, NULL);
-
   NPBool supportsCoreGraphics = FALSE;
+  NPBool supportsCoreAnimation = FALSE;
+  bool isGoogleChrome = strstr(pdata->user_agent, "Chrome") != NULL;
 
   err = NPN_GetValue (instance,
       NPNVsupportsCoreGraphicsBool,
@@ -163,19 +162,38 @@ NPP_New (NPMIMEType plugin_type, NPP instance, uint16_t mode,
 
   if (err != NPERR_NO_ERROR || !supportsCoreGraphics)
     return NPERR_INCOMPATIBLE_VERSION_ERROR;
-  
-  pdata->use_coregraphics = FALSE;
-  
-  if (strstr(pdata->user_agent, "Chrome") == NULL) {
-    err = NPN_SetValue (instance,
-        NPNVpluginDrawingModel,
-       (void*) NPDrawingModelCoreGraphics);
-    pdata->use_coregraphics = TRUE;
-  }
-  // else If UA is Chrome we fallback to QuickDraw drawing model
 
-  if (err != NPERR_NO_ERROR)
-    return NPERR_INCOMPATIBLE_VERSION_ERROR;
+  err = NPN_GetValue (instance,
+      NPNVsupportsCoreAnimationBool,
+      &supportsCoreAnimation);
+
+  if (supportsCoreAnimation) {
+    pdata->drawing_model = CORE_ANIMATION;
+    pdata->layer = [[[CALayer alloc] init] retain];
+
+    NPN_SetValue (instance, NPPVpluginEventModel , (void*) NPEventModelCocoa);
+    NPN_SetValue (instance, NPNVpluginDrawingModel,
+      (void*) NPDrawingModelCoreAnimation);
+
+    g_object_set (player, "video-sink", "calayersink", NULL);
+    g_object_set (player, "xid", (gulong) pdata->layer, NULL);
+
+  } else {
+    pdata->clippingView = [[NSView alloc] initWithFrame: r];
+
+    if (isGoogleChrome) {
+      /* for GoogleChrome we fallback to QuickDraw drawing model */
+      pdata->drawing_model = QUICK_DRAW;
+    } else {
+      pdata->drawing_model = CORE_GRAPHICS;
+      NPN_SetValue (instance, NPNVpluginDrawingModel,
+        (void*) NPDrawingModelCoreGraphics);
+    }
+
+    g_object_set (player, "video-sink", "osxvideosink", NULL);
+    g_object_set (player, "xid", (gulong) pdata->clippingView, NULL);
+  }
+  
 #endif
 
   /* FIXME: set this to avoid the .so from being unloaded. GType breaks badly if
@@ -196,7 +214,10 @@ NPP_Destroy (NPP instance, NPSavedData **saved_data)
   NPPGbpData *data = (NPPGbpData *) instance->pdata;
 
 #ifdef XP_MACOSX
-  [(data->clippingView) removeFromSuperview];
+  if (data->drawing_model == CORE_ANIMATION)
+    [data->layer release];
+  else
+    [(data->clippingView) removeFromSuperview];
 #endif
 
   g_signal_handlers_disconnect_matched (data->player, G_SIGNAL_MATCH_FUNC,
@@ -223,8 +244,9 @@ NPP_SetWindow (NPP instance, NPWindow *window)
   NPPGbpData *data = (NPPGbpData *) instance->pdata;
 
 #ifdef XP_MACOSX
-  attach_nsview_to_window (data->clippingView, window, data->user_agent,
-      data->use_coregraphics);
+  if (data->drawing_model != CORE_ANIMATION)
+    attach_nsview_to_window (data->clippingView, window, data->user_agent,
+        data->drawing_model == CORE_GRAPHICS);
 #else
   g_object_set (data->player, "xid", (gulong) window->window, NULL);
 #endif
@@ -342,8 +364,8 @@ NPP_Print (NPP instance, NPPrint* platformPrint)
 int16_t
 NPP_HandleEvent (NPP instance, void* event)
 {
-  /* return not handled for now */
-  return 0;
+  /* dumb handling of cocoa events */
+  return 1;
 }
 
 void
@@ -543,6 +565,13 @@ NPError NP_GetValue (NPP instance, NPPVariable variable, void *value)
       *((NPObject **) value) = NPN_CreateObject (instance,
           (NPClass *) &gbp_np_class);
       break;
+    case NPPVpluginCoreAnimationLayer:
+      ((NPPGbpData *) instance->pdata)->layer.frame = CGRectMake (0,0,1000,1000);
+      ((NPPGbpData *) instance->pdata)->layer.bounds = CGRectMake (0,0,100,100);
+      [((NPPGbpData *) instance->pdata)->layer setNeedsDisplay];
+      *((CALayer **) value) = ((NPPGbpData *) instance->pdata)->layer;
+      break;
+      
     default:
       rv = NPERR_GENERIC_ERROR;
       break;
@@ -655,6 +684,11 @@ void on_state_cb (GbpPlayer *player, gpointer user_data)
   g_return_if_fail (player != NULL);
 
   GST_INFO_OBJECT (player, "new state %s", state_closure->state);
+
+#ifdef XP_MACOSX
+  if (data->drawing_model == CORE_ANIMATION)
+    [data->layer setNeedsDisplay];
+#endif
 
   if (data->state != NULL)
     g_free (data->state);

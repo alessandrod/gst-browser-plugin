@@ -19,7 +19,7 @@ libgst_browser_plugin_la_LIBADD = $(GST_LIBS) -lgstinterfaces-0.10
 libgst_browser_plugin_la_LDFLAGS = -avoid-version -no-undefined -dynamic -ldl
 libgst_browser_plugin_la_CFLAGS = $(GST_CFLAGS) -Wall -Werror -D_GNU_SOURCE
 if OSX_BUILD
-libgst_browser_plugin_la_CFLAGS += -DXP_MACOSX -ObjC -framework AppKit -framework Carbon 
+libgst_browser_plugin_la_CFLAGS += -DXP_MACOSX -ObjC -framework AppKit -framework Carbon -framework Quartz
 else
 libgst_browser_plugin_la_LDFLAGS += -Wl, -znodelete
 endif

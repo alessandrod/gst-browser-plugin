@@ -37,6 +37,14 @@ G_BEGIN_DECLS
 
 #define NPP_INSTANCE_GET_DATA(instance) ((NPPGbpData *)(instance->pdata))
 
+#ifdef XP_MACOSX
+typedef enum {
+  QUICK_DRAW,
+  CORE_GRAPHICS,
+  CORE_ANIMATION
+} OSXDrawinModel;
+#endif
+
 typedef struct _NPPGbpData
 {
   const char *user_agent;
@@ -54,7 +62,8 @@ typedef struct _NPPGbpData
   gboolean quit;
 #ifdef XP_MACOSX
   NSView *clippingView;
-  gboolean use_coregraphics;
+  CALayer *layer;
+  OSXDrawinModel drawing_model;
 #endif
 } NPPGbpData;
 
