@@ -704,7 +704,7 @@ gbp_np_class_init ()
 
 #ifdef PLAYBACK_THREAD_POOL
   playback_thread_pool = g_thread_pool_new (playback_thread_pool_func, NULL,
-      PLAYBACK_THREAD_POOL_MAX_SIZE, FALSE, NULL);
+      PLAYBACK_THREAD_POOL_MAX_SIZE, TRUE, NULL);
   g_thread_pool_set_max_idle_time (PLAYBACK_THREAD_POOL_MAX_IDLE_TIME);
 #else
   joinable_threads = g_async_queue_new ();
