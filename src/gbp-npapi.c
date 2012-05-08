@@ -248,7 +248,7 @@ NPP_SetWindow (NPP instance, NPWindow *window)
     attach_nsview_to_window (data->clippingView, window, data->user_agent,
         data->drawing_model == CORE_GRAPHICS);
 #else
-  g_object_set (data->player, "xid", (gulong) window->window, NULL);
+  g_object_set (data->player, "xid", GPOINTER_TO_INT (window->window), NULL);
 #endif
 
   return NPERR_NO_ERROR;
@@ -565,13 +565,14 @@ NPError NP_GetValue (NPP instance, NPPVariable variable, void *value)
       *((NPObject **) value) = NPN_CreateObject (instance,
           (NPClass *) &gbp_np_class);
       break;
+#ifdef XP_MACOSX
     case NPPVpluginCoreAnimationLayer:
       ((NPPGbpData *) instance->pdata)->layer.frame = CGRectMake (0,0,1000,1000);
       ((NPPGbpData *) instance->pdata)->layer.bounds = CGRectMake (0,0,100,100);
       [((NPPGbpData *) instance->pdata)->layer setNeedsDisplay];
       *((CALayer **) value) = ((NPPGbpData *) instance->pdata)->layer;
       break;
-      
+#endif
     default:
       rv = NPERR_GENERIC_ERROR;
       break;
