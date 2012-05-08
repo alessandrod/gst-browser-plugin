@@ -44,6 +44,7 @@ typedef struct _NPPGbpData
   GAsyncQueue *playback_queue;
   char *state;
   gboolean exiting;
+  gboolean quit;
 } NPPGbpData;
 
 char *NP_GetMIMEDescription();

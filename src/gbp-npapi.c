@@ -160,6 +160,7 @@ NPP_Destroy (NPP instance, NPSavedData **saved_data)
   GST_INFO_OBJECT (data->player, "destroying player");
 
   gbp_np_class_stop_object_playback_thread (data);
+  npp_gbp_data_free (data);
 
   return NPERR_NO_ERROR;
 }
@@ -490,7 +491,6 @@ void on_state_cb (GbpPlayer *player, gpointer user_data)
 void
 npp_gbp_data_free (NPPGbpData *data)
 {
-#if 0
   if (data->errorHandler != NULL)
     NPN_ReleaseObject (data->errorHandler);
   data->errorHandler = NULL;
@@ -498,7 +498,6 @@ npp_gbp_data_free (NPPGbpData *data)
   if (data->stateHandler != NULL)
     NPN_ReleaseObject (data->stateHandler);
   data->stateHandler = NULL;
-#endif
 
   if (data->state)
     g_free (data->state);
