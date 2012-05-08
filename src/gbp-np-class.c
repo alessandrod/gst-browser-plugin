@@ -901,20 +901,21 @@ do_playback_queue (NPPGbpData *data, GAsyncQueue *queue)
 
     g_async_queue_lock (queue);
     if (exit) {
+#ifdef PLAYBACK_THREAD_POOL
+      data->exiting = TRUE;
+#endif
       while (g_async_queue_length_unlocked (queue)) {
         flushed_command = g_async_queue_pop_unlocked (queue);
         g_async_queue_unref (queue);
         playback_command_free (flushed_command);
       }
-
-      data->exiting = TRUE;
     }
 
 #ifdef PLAYBACK_THREAD_POOL
     if (g_atomic_int_dec_and_test (&data->pending_commands))
       ;
 #endif
-    
+
     g_async_queue_unlock (queue);
     /* we ref the queue for each queued command, see playback_command_push  */
     g_async_queue_unref (queue);
