@@ -67,6 +67,7 @@ typedef struct
   GCond *cond;
   GMutex *lock;
   gboolean done;
+  gboolean wait;
 } PlaybackCommand;
 
 static bool gbp_np_class_method_start (NPObject *obj, NPIdentifier name,
@@ -760,6 +761,7 @@ playback_command_new (PlaybackCommandCode code,
   command->cond = g_cond_new ();
   command->lock = g_mutex_new ();
   command->done = FALSE;
+  command->wait = FALSE;
 
   return command;
 }
@@ -768,6 +770,8 @@ void
 playback_command_free (PlaybackCommand *command)
 {
   g_return_if_fail (command != NULL);
+
+  GST_INFO ("freeing command %p", command);
 
   if (command->player)
     g_object_unref (command->player);
@@ -791,6 +795,7 @@ playback_command_push (PlaybackCommandCode code,
   g_async_queue_lock (data->playback_queue);
   if (!data->exiting) {
     command = playback_command_new (code, data, free_data); 
+    command->wait = wait;
 
     /* ref the queue, unref it in do_playback_queue so that we avoid a race
      * between destroying a plugin instance (which unrefs ->playback_queue), and
@@ -822,6 +827,7 @@ playback_command_push (PlaybackCommandCode code,
     g_mutex_unlock (command->lock);
     GST_INFO_OBJECT (player, "command %s completed",
         playback_command_names[code]);
+    playback_command_free (command);
   }
 }
 
@@ -877,12 +883,14 @@ do_playback_queue (NPPGbpData *data, GAsyncQueue *queue, GTimeVal *timeout)
 {
   PlaybackCommand *command, *flushed_command;
   gboolean exit = FALSE;
+  gboolean free_data = FALSE;
 
   while (exit == FALSE) {
     command = g_async_queue_timed_pop (queue, timeout);
     if (command == NULL)
       break;
 
+    free_data = !command->wait;
     exit = do_playback_command (command);
 
     g_async_queue_lock (queue);
@@ -904,7 +912,8 @@ do_playback_queue (NPPGbpData *data, GAsyncQueue *queue, GTimeVal *timeout)
     g_async_queue_unlock (queue);
     /* we ref the queue for each queued command, see playback_command_push  */
     g_async_queue_unref (queue);
-    playback_command_free (command);
+    if (free_data)
+      playback_command_free (command);
   }
 
   return exit;
