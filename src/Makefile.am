@@ -18,7 +18,11 @@ nodist_libgst_browser_plugin_la_SOURCES = \
 		$(WINDRES) $(RCFLAGS) $< -o $@
 
 libgst_browser_plugin_la_LIBADD = $(GST_LIBS) -lgstinterfaces-0.10
-libgst_browser_plugin_la_LDFLAGS = -avoid-version -dynamic -no-undefined -ldl
+libgst_browser_plugin_la_LDFLAGS = -avoid-version -dynamic -ldl
+if !MINGW_BUILD
+libgst_browser_plugin_la_LDFLAGS += -no-undefined
+endif
+
 libgst_browser_plugin_la_CFLAGS = $(GST_CFLAGS) -Wall $(ERROR_CFLAGS) -D_GNU_SOURCE
 if OSX_BUILD
 libgst_browser_plugin_la_CFLAGS += -DXP_MACOSX -ObjC -framework AppKit -framework Carbon -framework Quartz
