@@ -882,14 +882,17 @@ do_playback_command (PlaybackCommand *command)
 }
 
 static gboolean
-do_playback_queue (NPPGbpData *data, GAsyncQueue *queue, GTimeVal *timeout)
+do_playback_queue (NPPGbpData *data, GAsyncQueue *queue)
 {
   PlaybackCommand *command, *flushed_command;
   gboolean exit = FALSE;
   gboolean free_data = FALSE;
+  GTimeVal timeout;
 
   while (exit == FALSE) {
-    command = g_async_queue_timed_pop (queue, timeout);
+    g_get_current_time (&timeout);
+    g_time_val_add (&timeout, G_USEC_PER_SEC / 5);
+    command = g_async_queue_timed_pop (queue, &timeout);
     if (command == NULL)
       break;
 
@@ -929,7 +932,7 @@ playback_thread_func (gpointer data)
   GAsyncQueue *queue = (GAsyncQueue *) data;
 
   /* loop over the queue forever */
-  do_playback_queue (NULL, queue, NULL);
+  do_playback_queue (NULL, queue);
 
   g_async_queue_push (joinable_threads, g_thread_self ());
 
@@ -940,11 +943,7 @@ static void
 playback_thread_pool_func (gpointer push_data, gpointer pull_data)
 {
   NPPGbpData *data = (NPPGbpData *) push_data;
-  GTimeVal timeout;
   GbpPlayer *player = NULL;
-
-  timeout.tv_sec = 0;
-  timeout.tv_usec = 100;
 
   if (data->player != NULL)
     player = data->player;
@@ -952,7 +951,7 @@ playback_thread_pool_func (gpointer push_data, gpointer pull_data)
   GST_DEBUG_OBJECT (player, "pool worker %p starting on player %p",
       g_thread_self (), player);
 
-  do_playback_queue (data, data->playback_queue, &timeout);
+  do_playback_queue (data, data->playback_queue);
 
   GST_DEBUG_OBJECT (player, "pool worker %p done on player %p",
       g_thread_self (), player);
