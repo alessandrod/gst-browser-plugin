@@ -64,8 +64,8 @@ typedef struct
   NPPGbpData *data;
   GbpPlayer *player;
   gboolean free_data;
-  GCond *cond;
-  GMutex *lock;
+  GCond cond;
+  GMutex lock;
   gboolean done;
   gboolean wait;
 } PlaybackCommand;
@@ -761,8 +761,6 @@ playback_command_new (PlaybackCommandCode code,
   command->code = code;
   command->data = data;
   command->free_data = free_data;
-  command->cond = g_cond_new ();
-  command->lock = g_mutex_new ();
   command->done = FALSE;
   command->wait = FALSE;
 
@@ -783,8 +781,6 @@ playback_command_free (PlaybackCommand *command)
     npp_gbp_data_free (command->data);
   command->data = NULL;
 
-  g_cond_free (command->cond);
-  g_mutex_free (command->lock);
   g_free (command);
 }
 
@@ -809,7 +805,7 @@ playback_command_push (PlaybackCommandCode code,
         command, compare_commands, NULL);
 
 #ifdef PLAYBACK_THREAD_POOL
-    if (g_atomic_int_exchange_and_add (&data->pending_commands, 1) == 0) {
+    if (g_atomic_int_add(&data->pending_commands, 1) == 0) {
       GST_INFO_OBJECT (data->player, "no pending commands, pushing worker");
       g_thread_pool_push (playback_thread_pool, data, NULL);
     }
@@ -824,10 +820,10 @@ playback_command_push (PlaybackCommandCode code,
     GbpPlayer *player = data->player;
     GST_INFO_OBJECT (player, "waiting for command %s to complete",
         playback_command_names[code]);
-    g_mutex_lock (command->lock);
+    g_mutex_lock (&command->lock);
     while (!command->done)
-      g_cond_wait (command->cond, command->lock);
-    g_mutex_unlock (command->lock);
+      g_cond_wait (&command->cond, &command->lock);
+    g_mutex_unlock (&command->lock);
     GST_INFO_OBJECT (player, "command %s completed",
         playback_command_names[code]);
     playback_command_free (command);
@@ -873,10 +869,10 @@ do_playback_command (PlaybackCommand *command)
       g_thread_self(), playback_command_names[command->code]);
 
   /* signal in case someone is waiting */
-  g_mutex_lock (command->lock);
+  g_mutex_lock (&command->lock);
   command->done = TRUE;
-  g_cond_signal (command->cond);
-  g_mutex_unlock (command->lock);
+  g_cond_signal (&command->cond);
+  g_mutex_unlock (&command->lock);
 
   return exit;
 }
@@ -887,12 +883,9 @@ do_playback_queue (NPPGbpData *data, GAsyncQueue *queue)
   PlaybackCommand *command, *flushed_command;
   gboolean exit = FALSE;
   gboolean free_data = FALSE;
-  GTimeVal timeout;
 
   while (exit == FALSE) {
-    g_get_current_time (&timeout);
-    g_time_val_add (&timeout, G_USEC_PER_SEC / 5);
-    command = g_async_queue_timed_pop (queue, &timeout);
+    command = g_async_queue_timeout_pop  (queue, G_USEC_PER_SEC / 5);
     if (command == NULL)
       break;
 
