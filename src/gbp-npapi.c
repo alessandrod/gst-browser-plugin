@@ -64,7 +64,7 @@ void attach_nsview_to_window (NSView *clippingView, NPWindow *npwindow,
 
 NPNetscapeFuncs NPNFuncs;
 
-GStaticMutex pending_invoke_data_lock = G_STATIC_MUTEX_INIT;
+static GMutex pending_invoke_data_lock;
 static GSList *pending_invoke_data;
 
 /* NPP vtable symbols */
@@ -487,7 +487,7 @@ NP_Initialize (NPNetscapeFuncs *mozilla_vtable, NPPluginFuncs *plugin_vtable)
   SetDllDirectory (library_path);
 #endif
 
-  g_type_init ();
+  //g_type_init ();
   gst_init (NULL, NULL);
   registry = gst_registry_get_default ();
 
@@ -533,12 +533,12 @@ NP_Shutdown ()
 
   gbp_np_class_free ();
 
-  g_static_mutex_lock (&pending_invoke_data_lock);
+  g_mutex_lock (&pending_invoke_data_lock);
   for (walk = pending_invoke_data; walk != NULL; walk = walk->next)
     invoke_data_free ((InvokeData *) walk->data, FALSE);
   g_slist_free (pending_invoke_data);
   pending_invoke_data = NULL;
-  g_static_mutex_unlock (&pending_invoke_data_lock);
+  g_mutex_unlock (&pending_invoke_data_lock);
 
   return NPERR_NO_ERROR;
 }
@@ -596,9 +596,9 @@ invoke_data_new (NPP instance, NPObject *object, int n_args)
   invoke_data->args = NPN_MemAlloc (sizeof (NPVariant) * n_args);
   invoke_data->n_args = n_args;
 
-  g_static_mutex_lock (&pending_invoke_data_lock);
+  g_mutex_lock (&pending_invoke_data_lock);
   pending_invoke_data = g_slist_append (pending_invoke_data, invoke_data);
-  g_static_mutex_unlock (&pending_invoke_data_lock);
+  g_mutex_unlock (&pending_invoke_data_lock);
 
   return invoke_data;
 }
@@ -620,9 +620,9 @@ invoke_data_free (InvokeData *invoke_data, gboolean remove_from_pending_slist)
   NPN_MemFree (invoke_data->args);
 
   if (remove_from_pending_slist) {
-    g_static_mutex_lock (&pending_invoke_data_lock);
+    g_mutex_lock (&pending_invoke_data_lock);
     pending_invoke_data = g_slist_remove (pending_invoke_data, invoke_data);
-    g_static_mutex_unlock (&pending_invoke_data_lock);
+    g_mutex_unlock (&pending_invoke_data_lock);
   }
 
   NPN_MemFree (invoke_data);
